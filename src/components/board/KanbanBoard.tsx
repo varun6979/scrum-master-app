@@ -173,13 +173,13 @@ export function KanbanBoard({ sprintId, swimlaneBy = 'none', wipLimits = {} }: K
             <div key={lane.key}>
               {swimlaneBy !== 'none' && (
                 <div className="flex items-center gap-2 mb-3 sticky left-0">
-                  {lane.color && (
-                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: lane.color }} />
+                  {'color' in lane && lane.color && !('initials' in lane && lane.initials) && (
+                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: lane.color as string }} />
                   )}
-                  {lane.initials && (
+                  {'initials' in lane && lane.initials && (
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                      style={{ backgroundColor: lane.color ?? '#94A3B8', fontSize: '9px' }}>
-                      {lane.initials}
+                      style={{ backgroundColor: ('color' in lane ? lane.color as string : undefined) ?? '#94A3B8', fontSize: '9px' }}>
+                      {lane.initials as string}
                     </div>
                   )}
                   <span className="text-sm font-bold text-slate-600">{lane.label}</span>

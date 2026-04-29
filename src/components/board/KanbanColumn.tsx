@@ -42,7 +42,7 @@ export function KanbanColumn({
           )}>
             {stories.length}{wipLimit !== undefined ? `/${wipLimit}` : ''}
           </span>
-          {isOverLimit && <AlertTriangle size={13} className="text-red-500" title="WIP limit exceeded" />}
+          {isOverLimit && <span title="WIP limit exceeded"><AlertTriangle size={13} className="text-red-500" /></span>}
         </div>
       </div>
 
