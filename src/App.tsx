@@ -1,8 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { useScrumStore } from './store/useScrumStore';
+import { AuthProvider } from './contexts/AuthContext';
 import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
 import { OrgSetupPage } from './pages/auth/OrgSetupPage';
@@ -44,62 +42,19 @@ import { VelocityPage } from './pages/VelocityPage';
 import { WorkloadPage } from './pages/WorkloadPage';
 import { ReleasesPage } from './pages/ReleasesPage';
 
-// Loads org data into the store once we know the org
-function OrgDataLoader({ children }: { children: React.ReactNode }) {
-  const { orgMember } = useAuth();
-  const loadFromSupabase = useScrumStore(s => s.loadFromSupabase);
-
-  useEffect(() => {
-    if (orgMember?.orgId) {
-      loadFromSupabase(orgMember.orgId);
-    }
-  }, [orgMember?.orgId]);
-
-  return <>{children}</>;
-}
-
-// Redirect logged-in users away from auth pages; redirect logged-out users away from app
-function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { user, orgMember, loading } = useAuth();
-  const location = useLocation();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
-  if (!orgMember) return <Navigate to="/org-setup" replace />;
-  return <>{children}</>;
-}
-
-function RequireNoAuth({ children }: { children: React.ReactNode }) {
-  const { user, orgMember, loading } = useAuth();
-  if (loading) return null;
-  if (user && orgMember) return <Navigate to="/" replace />;
-  return <>{children}</>;
-}
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Auth routes */}
-          <Route path="/login" element={<RequireNoAuth><LoginPage /></RequireNoAuth>} />
-          <Route path="/signup" element={<RequireNoAuth><SignupPage /></RequireNoAuth>} />
+          {/* Auth routes (optional) */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
           <Route path="/org-setup" element={<OrgSetupPage />} />
 
-          {/* Protected app routes */}
-          <Route element={
-            <RequireAuth>
-              <OrgDataLoader>
-                <AppShell />
-              </OrgDataLoader>
-            </RequireAuth>
-          }>
+          {/* App routes - open access */}
+          <Route element={<AppShell />}>
             <Route index element={<Dashboard />} />
             <Route path="board" element={<SprintBoard />} />
             <Route path="backlog" element={<Backlog />} />
