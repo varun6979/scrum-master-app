@@ -10,6 +10,8 @@ import {
 import { getSeedData } from '../lib/seedData';
 import { generateId } from '../lib/idgen';
 import { getTodayISO } from '../lib/dateUtils';
+import { supabase } from '../lib/supabase';
+import { fetchOrgData, storyToDb, sprintToDb, epicToDb, memberToDb, milestoneToDb, riskToDb, decisionToDb } from '../lib/supabaseSync';
 
 interface ScrumActions {
   // Stories
@@ -107,6 +109,11 @@ interface ScrumActions {
   addFeatureFlag: (f: Omit<FeatureFlag, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateFeatureFlag: (id: string, updates: Partial<FeatureFlag>) => void;
   deleteFeatureFlag: (id: string) => void;
+
+  // Supabase sync
+  currentOrgId: string | null;
+  setOrgId: (orgId: string) => void;
+  loadFromSupabase: (orgId: string) => Promise<void>;
 }
 
 type ScrumStore = AppState & ScrumActions;
@@ -124,6 +131,26 @@ export const useScrumStore = create<ScrumStore>()(
   persist(
     (set, get) => ({
       ...getSeedData(),
+      currentOrgId: null,
+      setOrgId: (orgId) => set({ currentOrgId: orgId }),
+      loadFromSupabase: async (orgId: string) => {
+        try {
+          const data = await fetchOrgData(orgId);
+          set((state) => ({
+            currentOrgId: orgId,
+            members: data.members.length ? data.members : state.members,
+            epics: data.epics.length ? data.epics : state.epics,
+            sprints: data.sprints.length ? data.sprints : state.sprints,
+            stories: data.stories.length ? data.stories : state.stories,
+            milestones: data.milestones.length ? data.milestones : state.milestones,
+            risks: data.risks.length ? data.risks : state.risks,
+            decisions: data.decisions.length ? data.decisions : state.decisions,
+            ...(data.settings ? { settings: { ...state.settings, ...data.settings } } : {}),
+          }));
+        } catch (e) {
+          console.error('loadFromSupabase failed', e);
+        }
+      },
 
       // ── Stories ──────────────────────────────────────────────────────────
       addStory: (story) =>
@@ -134,12 +161,10 @@ export const useScrumStore = create<ScrumStore>()(
             successMetrics: [] as string[], blockerFlag: false, crossTeamDependency: false,
             attachments: [] as import('../types').StoryAttachment[],
           };
-          return {
-            stories: [...state.stories, {
-              ...defaults, ...story,
-              id: generateId(), createdAt: getTodayISO(), updatedAt: getTodayISO(),
-            } as Story],
-          };
+          const newStory = { ...defaults, ...story, id: generateId(), createdAt: getTodayISO(), updatedAt: getTodayISO() } as Story;
+          const orgId = state.currentOrgId;
+          if (orgId) supabase.from('stories').insert(storyToDb(newStory, orgId)).then(({ error }) => { if (error) console.error('addStory sync', error); });
+          return { stories: [...state.stories, newStory] };
         }),
       updateStory: (id, updates) =>
         set((state) => {
@@ -161,17 +186,25 @@ export const useScrumStore = create<ScrumStore>()(
               }
             }
           }
+          const orgId = state.currentOrgId;
+          const updated = state.stories.map((s) => s.id === id ? { ...s, ...updates, updatedAt: getTodayISO() } : s);
+          const updatedStory = updated.find(s => s.id === id);
+          if (orgId && updatedStory) supabase.from('stories').update(storyToDb(updatedStory, orgId)).eq('id', id).then(({ error }) => { if (error) console.error('updateStory sync', error); });
           return {
-            stories: state.stories.map((s) => s.id === id ? { ...s, ...updates, updatedAt: getTodayISO() } : s),
+            stories: updated,
             activityLog: [...(state.activityLog ?? []), ...logEntries],
           };
         }),
       deleteStory: (id) =>
-        set((state) => ({
-          stories: state.stories.filter((s) => s.id !== id),
-          dependencies: state.dependencies.filter((d) => d.fromStoryId !== id && d.toStoryId !== id),
-          comments: state.comments.filter((c) => c.storyId !== id),
-        })),
+        set((state) => {
+          const orgId = state.currentOrgId;
+          if (orgId) supabase.from('stories').delete().eq('id', id).then(({ error }) => { if (error) console.error('deleteStory sync', error); });
+          return {
+            stories: state.stories.filter((s) => s.id !== id),
+            dependencies: state.dependencies.filter((d) => d.fromStoryId !== id && d.toStoryId !== id),
+            comments: state.comments.filter((c) => c.storyId !== id),
+          };
+        }),
       moveStory: (id, newStatus, newOrder) =>
         set((state) => {
           const story = state.stories.find((s) => s.id === id);
@@ -196,21 +229,32 @@ export const useScrumStore = create<ScrumStore>()(
 
       // ── Sprints ───────────────────────────────────────────────────────────
       addSprint: (sprint) =>
-        set((state) => ({
-          sprints: [...state.sprints, { ...sprint, id: generateId(), createdAt: getTodayISO() } as Sprint],
-        })),
+        set((state) => {
+          const newSprint = { ...sprint, id: generateId(), createdAt: getTodayISO() } as Sprint;
+          const orgId = state.currentOrgId;
+          if (orgId) supabase.from('sprints').insert(sprintToDb(newSprint, orgId)).then(({ error }) => { if (error) console.error('addSprint sync', error); });
+          return { sprints: [...state.sprints, newSprint] };
+        }),
       updateSprint: (id, updates) =>
-        set((state) => ({
-          sprints: state.sprints.map((sp) => sp.id === id ? { ...sp, ...updates } : sp),
-        })),
+        set((state) => {
+          const orgId = state.currentOrgId;
+          const updated = state.sprints.map((sp) => sp.id === id ? { ...sp, ...updates } : sp);
+          const updatedSprint = updated.find(sp => sp.id === id);
+          if (orgId && updatedSprint) supabase.from('sprints').update(sprintToDb(updatedSprint, orgId)).eq('id', id).then(({ error }) => { if (error) console.error('updateSprint sync', error); });
+          return { sprints: updated };
+        }),
       deleteSprint: (id) =>
-        set((state) => ({
-          sprints: state.sprints.filter((sp) => sp.id !== id),
-          stories: state.stories.map((s) =>
-            s.sprintId === id ? { ...s, sprintId: undefined, status: 'backlog', updatedAt: getTodayISO() } : s
-          ),
-          activeSprintId: state.activeSprintId === id ? null : state.activeSprintId,
-        })),
+        set((state) => {
+          const orgId = state.currentOrgId;
+          if (orgId) supabase.from('sprints').delete().eq('id', id).then(({ error }) => { if (error) console.error('deleteSprint sync', error); });
+          return {
+            sprints: state.sprints.filter((sp) => sp.id !== id),
+            stories: state.stories.map((s) =>
+              s.sprintId === id ? { ...s, sprintId: undefined, status: 'backlog', updatedAt: getTodayISO() } : s
+            ),
+            activeSprintId: state.activeSprintId === id ? null : state.activeSprintId,
+          };
+        }),
       startSprint: (id) =>
         set((state) => {
           const alreadyActive = state.sprints.find((sp) => sp.status === 'active');
@@ -252,15 +296,26 @@ export const useScrumStore = create<ScrumStore>()(
 
       // ── Epics ─────────────────────────────────────────────────────────────
       addEpic: (epic) =>
-        set((state) => ({
-          epics: [...state.epics, { ...epic, id: generateId(), createdAt: getTodayISO() } as Epic],
-        })),
+        set((state) => {
+          const newEpic = { ...epic, id: generateId(), createdAt: getTodayISO() } as Epic;
+          const orgId = state.currentOrgId;
+          if (orgId) supabase.from('epics').insert(epicToDb(newEpic, orgId)).then(({ error }) => { if (error) console.error('addEpic sync', error); });
+          return { epics: [...state.epics, newEpic] };
+        }),
       updateEpic: (id, updates) =>
-        set((state) => ({
-          epics: state.epics.map((e) => e.id === id ? { ...e, ...updates } : e),
-        })),
+        set((state) => {
+          const orgId = state.currentOrgId;
+          const updated = state.epics.map((e) => e.id === id ? { ...e, ...updates } : e);
+          const updatedEpic = updated.find(e => e.id === id);
+          if (orgId && updatedEpic) supabase.from('epics').update(epicToDb(updatedEpic, orgId)).eq('id', id).then(({ error }) => { if (error) console.error('updateEpic sync', error); });
+          return { epics: updated };
+        }),
       deleteEpic: (id) =>
-        set((state) => ({ epics: state.epics.filter((e) => e.id !== id) })),
+        set((state) => {
+          const orgId = state.currentOrgId;
+          if (orgId) supabase.from('epics').delete().eq('id', id).then(({ error }) => { if (error) console.error('deleteEpic sync', error); });
+          return { epics: state.epics.filter((e) => e.id !== id) };
+        }),
 
       // ── Standups ──────────────────────────────────────────────────────────
       addStandup: (entry) =>
