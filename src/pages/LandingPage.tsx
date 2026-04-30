@@ -6,7 +6,7 @@ import {
   CheckCircle2, XCircle, AlertCircle, Code2, MessageCircle, Rocket,
   Share2, Zap, Building2, Crown, Star, Shield, Globe, Clock,
   ArrowRight, Play, ChevronDown, ChevronRight, Bot, GitBranch,
-  Bell, Repeat, Lock, Award, TrendingUp, Target, Cpu, Hash,
+  Bell, Repeat, Lock, Award, TrendingUp, Target, Cpu, Hash, Plane,
 } from 'lucide-react';
 
 // ─── Data ───────────────────────────────────────────────────────────────────
@@ -194,6 +194,269 @@ const howItWorks = [
   { step: '04', title: 'Run ceremonies, ship faster', desc: 'Standup, retro, review — all in the tool. Blockers auto-surface. Nothing falls through the cracks.' },
 ];
 
+// ─── Product Preview ─────────────────────────────────────────────────────────
+
+const PREVIEW_TABS = [
+  {
+    id: 'board',
+    label: 'Sprint Board',
+    icon: LayoutDashboard,
+    color: '#4F6EF7',
+    headline: 'Real-time Kanban with intelligence built in',
+    points: ['WIP limits enforce flow discipline', 'Blocked stories surface instantly with red alerts', 'Drag stories across columns — status syncs everywhere', 'Assignee avatars, story points, and priority at a glance'],
+    mockup: [
+      { col: 'To Do', color: '#64748b', stories: ['User login flow (5pt)', 'Password reset email (3pt)', 'Rate limiting (8pt)'] },
+      { col: 'In Progress', color: '#4F6EF7', stories: ['OAuth integration (8pt) 🔴', 'Dashboard redesign (5pt)'] },
+      { col: 'Review', color: '#F59E0B', stories: ['API auth middleware (3pt)'] },
+      { col: 'Done', color: '#10B981', stories: ['DB schema migration (5pt)', 'CI pipeline setup (2pt)'] },
+    ],
+  },
+  {
+    id: 'ai',
+    label: 'AI Sprint Coach',
+    icon: Bot,
+    color: '#8B5CF6',
+    headline: 'The only Agile AI that knows SAFe, PI Planning, and your data',
+    points: ['Ask "create next 6 sprints" — done in seconds', 'Detects overloaded team members automatically', 'Explains WSJF, ROAM risks, velocity drops in plain English', 'Executes actions: create sprints, assign stories, flag risks'],
+    chat: [
+      { role: 'user', msg: 'Create the next 3 sprints starting today with 2-week cadence' },
+      { role: 'ai', msg: '✅ Created Sprint 4 (Apr 30 – May 13), Sprint 5 (May 14 – May 27), Sprint 6 (May 28 – Jun 10). Goal set to "Continues from Sprint 3 velocity of 42pts." Want me to assign the top backlog stories?' },
+      { role: 'user', msg: 'Who is over capacity this sprint?' },
+      { role: 'ai', msg: '⚠️ Bob Martinez is at 38pt assigned vs 30pt capacity (127%). Alice Chen and Carol Kim are within range. Suggest moving "Rate limiting (8pt)" from Bob to Carol who has 12pt headroom.' },
+    ],
+  },
+  {
+    id: 'risk',
+    label: 'Risk Register',
+    icon: ShieldAlert,
+    color: '#EF4444',
+    headline: 'The 5×5 risk matrix Jira Premium doesn\'t have',
+    points: ['Plot every risk on probability × impact matrix', 'ROAM categorization built-in (Resolved, Owned, Accepted, Mitigated)', 'Auto-surface risks linked to blocked stories', 'Risk score auto-calculated — no spreadsheet needed'],
+    risks: [
+      { title: 'Auth service single point of failure', prob: 'High', impact: 'Critical', score: 20, status: 'open' },
+      { title: 'Third-party API rate limit', prob: 'Medium', impact: 'Major', score: 12, status: 'mitigated' },
+      { title: 'Release dependency on DevOps', prob: 'Low', impact: 'Major', score: 8, status: 'owned' },
+    ],
+  },
+  {
+    id: 'forecast',
+    label: 'Monte Carlo',
+    icon: BarChart2,
+    color: '#10B981',
+    headline: '10,000 simulations. One honest delivery date.',
+    points: ['Based on your actual historical velocity — not guesses', 'P50 / P85 / P95 confidence bands', '"When will we ship?" answered in seconds', 'Beats every Jira add-on at half the cost'],
+    forecast: { p50: 'May 14', p85: 'May 27', p95: 'Jun 3', velocity: 42, remaining: 187 },
+  },
+  {
+    id: 'vacation',
+    label: 'Capacity Planner',
+    icon: Users,
+    color: '#F59E0B',
+    headline: 'The OOO visibility gap Jira never solved',
+    points: ['Team vacation calendar linked directly to sprint capacity', 'Capacity auto-adjusts: 4 days OOO = proportional point reduction', 'OOO banner appears during standups — no more assigning to absent members', 'Sprint capacity impact shown per-sprint, per-member'],
+    capacity: [
+      { name: 'Alice Chen', base: 30, adj: 30, ooo: 0 },
+      { name: 'Bob Martinez', base: 30, adj: 18, ooo: 4 },
+      { name: 'Carol Kim', base: 25, adj: 25, ooo: 0 },
+      { name: 'David Lee', base: 20, adj: 12, ooo: 4 },
+    ],
+  },
+];
+
+function ProductPreview() {
+  const [activeTab, setActiveTab] = useState(0);
+  const tab = PREVIEW_TABS[activeTab];
+
+  return (
+    <div className="rounded-2xl border border-slate-800 overflow-hidden bg-slate-900">
+      {/* Tab bar */}
+      <div className="flex overflow-x-auto border-b border-slate-800">
+        {PREVIEW_TABS.map((t, i) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(i)}
+              className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === i
+                  ? 'border-brand-400 text-white bg-slate-800'
+                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <Icon size={14} style={{ color: activeTab === i ? t.color : undefined }} />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 min-h-[380px]">
+        {/* Left: description */}
+        <div className="lg:col-span-2 p-8 flex flex-col justify-center border-r border-slate-800">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-5" style={{ backgroundColor: `${tab.color}20` }}>
+            <tab.icon size={20} style={{ color: tab.color }} />
+          </div>
+          <h3 className="text-xl font-bold text-white mb-4 leading-snug">{tab.headline}</h3>
+          <ul className="space-y-3">
+            {tab.points.map((p) => (
+              <li key={p} className="flex items-start gap-2.5 text-sm text-slate-300">
+                <CheckCircle2 size={14} className="mt-0.5 shrink-0" style={{ color: tab.color }} />
+                {p}
+              </li>
+            ))}
+          </ul>
+          <Link to="/" className="mt-6 inline-flex items-center gap-2 text-sm font-semibold" style={{ color: tab.color }}>
+            Try it free <ArrowRight size={14} />
+          </Link>
+        </div>
+
+        {/* Right: visual mockup */}
+        <div className="lg:col-span-3 p-6 overflow-auto">
+          {tab.id === 'board' && tab.mockup && (
+            <div className="grid grid-cols-4 gap-3 h-full">
+              {tab.mockup.map((col) => (
+                <div key={col.col} className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: col.color }} />
+                    <span className="text-xs font-bold text-slate-300">{col.col}</span>
+                    <span className="ml-auto text-xs text-slate-500">{col.stories.length}</span>
+                  </div>
+                  {col.stories.map((s) => (
+                    <div key={s} className="bg-slate-800 rounded-lg p-2.5 border border-slate-700 text-xs text-slate-200 leading-snug hover:border-slate-500 transition-colors">
+                      {s}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab.id === 'ai' && tab.chat && (
+            <div className="space-y-3 max-w-lg">
+              {tab.chat.map((msg, i) => (
+                <div key={i} className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.role === 'ai' && (
+                    <div className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center shrink-0 mt-0.5">
+                      <Bot size={12} className="text-white" />
+                    </div>
+                  )}
+                  <div className={`max-w-xs rounded-xl px-3.5 py-2.5 text-xs leading-relaxed ${
+                    msg.role === 'user'
+                      ? 'bg-brand-500 text-white rounded-tr-sm'
+                      : 'bg-slate-800 text-slate-200 border border-slate-700 rounded-tl-sm'
+                  }`}>
+                    {msg.msg}
+                  </div>
+                </div>
+              ))}
+              <div className="flex gap-2 mt-4">
+                <input className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-300 placeholder-slate-500" placeholder="Ask anything about your sprint..." readOnly />
+                <button className="px-3 py-2 rounded-lg text-xs font-semibold text-white" style={{ background: '#8B5CF6' }}>Send</button>
+              </div>
+            </div>
+          )}
+
+          {tab.id === 'risk' && tab.risks && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-1.5 text-xs text-slate-500 font-semibold px-1 mb-2">
+                <span>Risk</span><span className="text-center">Probability × Impact</span><span className="text-center">Status</span>
+              </div>
+              {tab.risks.map((r) => (
+                <div key={r.title} className="bg-slate-800 border border-slate-700 rounded-xl p-4 grid grid-cols-3 gap-3 items-center">
+                  <p className="text-xs text-slate-200 font-medium col-span-1 line-clamp-2">{r.title}</p>
+                  <div className="text-center">
+                    <div className="inline-flex items-center gap-1 text-xs">
+                      <span className="bg-red-900/40 text-red-300 px-1.5 py-0.5 rounded">{r.prob}</span>
+                      <span className="text-slate-500">×</span>
+                      <span className="bg-orange-900/40 text-orange-300 px-1.5 py-0.5 rounded">{r.impact}</span>
+                    </div>
+                    <div className="text-lg font-black mt-1" style={{ color: r.score >= 15 ? '#EF4444' : r.score >= 8 ? '#F59E0B' : '#10B981' }}>{r.score}</div>
+                  </div>
+                  <div className="text-center">
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${r.status === 'open' ? 'bg-red-900/40 text-red-300' : r.status === 'mitigated' ? 'bg-green-900/40 text-green-300' : 'bg-blue-900/40 text-blue-300'}`}>
+                      {r.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              <div className="flex items-center gap-3 text-xs text-slate-500 pt-2">
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-red-500" />Score ≥ 15: Critical</div>
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-amber-400" />8–14: High</div>
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded bg-green-400" />&lt;8: Low</div>
+              </div>
+            </div>
+          )}
+
+          {tab.id === 'forecast' && tab.forecast && (
+            <div className="flex flex-col items-center justify-center h-full gap-6">
+              <div className="text-center">
+                <p className="text-xs text-slate-400 mb-1">Remaining: {tab.forecast.remaining}pt · Avg velocity: {tab.forecast.velocity}pt/sprint</p>
+                <p className="text-xs text-slate-400">Based on 10,000 Monte Carlo simulations</p>
+              </div>
+              <div className="grid grid-cols-3 gap-4 w-full max-w-md">
+                {[
+                  { label: '50% likely by', date: tab.forecast.p50, color: '#10B981', desc: 'Best case' },
+                  { label: '85% likely by', date: tab.forecast.p85, color: '#F59E0B', desc: 'Plan for this' },
+                  { label: '95% likely by', date: tab.forecast.p95, color: '#EF4444', desc: 'Buffer date' },
+                ].map(({ label, date, color, desc }) => (
+                  <div key={label} className="bg-slate-800 border border-slate-700 rounded-xl p-4 text-center">
+                    <p className="text-xs text-slate-400 mb-2">{label}</p>
+                    <p className="text-xl font-black" style={{ color }}>{date}</p>
+                    <p className="text-xs text-slate-500 mt-1">{desc}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="w-full max-w-md bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <p className="text-xs text-slate-400 mb-3">Probability distribution</p>
+                <div className="flex items-end gap-1 h-16">
+                  {[2, 4, 8, 14, 22, 28, 18, 12, 8, 4, 2, 1].map((h, i) => (
+                    <div key={i} className="flex-1 rounded-t transition-all" style={{ height: `${(h / 28) * 100}%`, backgroundColor: i < 5 ? '#10B981' : i < 8 ? '#F59E0B' : '#EF4444', opacity: 0.7 + i * 0.02 }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab.id === 'vacation' && tab.capacity && (
+            <div className="space-y-4">
+              <div className="bg-amber-900/20 border border-amber-700/40 rounded-xl px-4 py-3 flex items-center gap-2 text-sm text-amber-300">
+                <Plane size={14} />
+                <span>2 team members OOO this sprint — capacity auto-adjusted</span>
+              </div>
+              <div className="space-y-3">
+                {tab.capacity.map((m) => {
+                  const pct = Math.round((m.adj / m.base) * 100);
+                  return (
+                    <div key={m.name} className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-slate-200">{m.name}</span>
+                        <div className="flex items-center gap-3 text-xs">
+                          {m.ooo > 0 && <span className="bg-amber-900/40 text-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1"><Plane size={10} /> {m.ooo} days OOO</span>}
+                          <span className={`font-bold ${m.adj < m.base ? 'text-amber-400' : 'text-green-400'}`}>{m.adj}pt <span className="text-slate-500 font-normal">/ {m.base}pt</span></span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-slate-700 rounded-full h-1.5">
+                        <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: m.adj < m.base ? '#F59E0B' : '#10B981' }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Total sprint capacity</span>
+                  <span className="font-bold text-white">85pt <span className="text-slate-400 font-normal">/ 105pt base</span></span>
+                </div>
+                <p className="text-xs text-amber-400 mt-1">Plan ~85 story points for this sprint</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StarRating({ count }: { count: number }) {
   return (
     <div className="flex gap-0.5">
@@ -290,6 +553,20 @@ export function LandingPage() {
         {/* Blobs */}
         <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full opacity-10 pointer-events-none" style={{ background: '#4F6EF7', filter: 'blur(100px)', transform: 'translate(30%, -30%)' }} />
         <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full opacity-10 pointer-events-none" style={{ background: '#93C5FD', filter: 'blur(80px)', transform: 'translate(-30%, 30%)' }} />
+      </section>
+
+      {/* ── PRODUCT PREVIEW ── */}
+      <section className="bg-slate-950 py-20 border-b border-slate-800">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <p className="text-xs font-bold text-brand-400 tracking-widest uppercase mb-3">See it in action</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-3">
+              Not just a Kanban board.<br />A complete Scrum operating system.
+            </h2>
+            <p className="text-slate-400 text-lg">Everything your team needs — in one tab, not 12 different tools.</p>
+          </div>
+          <ProductPreview />
+        </div>
       </section>
 
       {/* ── SOCIAL PROOF BAR ── */}
