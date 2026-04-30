@@ -511,7 +511,7 @@ Choose your role below to see suggested prompts, or just ask me anything!`,
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold text-slate-900">Agile AI Assistant</h1>
-              <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full border border-brand-200">Claude claude-sonnet-4-6</span>
+              <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full border border-brand-200">GPT-4o mini</span>
             </div>
             <p className="text-slate-500 text-sm">Expert in Agile · Scrum · SAFe · PI Planning · Project Management</p>
           </div>

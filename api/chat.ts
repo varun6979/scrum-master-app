@@ -154,39 +154,40 @@ ${(context.risks ?? []).filter((r: Record<string, unknown>) => r.status === 'ope
 
     const systemWithContext = SYSTEM_PROMPT + '\n\n' + contextStr;
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY is not set in environment variables.' }), {
+      return new Response(JSON.stringify({ error: 'OPENAI_API_KEY is not set in environment variables.' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'gpt-4o-mini',
         max_tokens: 2048,
-        system: systemWithContext,
-        messages: messages.map((m: { role: string; content: string }) => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.content,
-        })),
+        messages: [
+          { role: 'system', content: systemWithContext },
+          ...messages.map((m: { role: string; content: string }) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+          })),
+        ],
       }),
     });
 
-    if (!anthropicRes.ok) {
-      const errBody = await anthropicRes.text();
-      throw new Error(`Anthropic API error ${anthropicRes.status}: ${errBody}`);
+    if (!openaiRes.ok) {
+      const errBody = await openaiRes.text();
+      throw new Error(`OpenAI API error ${openaiRes.status}: ${errBody}`);
     }
 
-    const anthropicData = await anthropicRes.json();
-    const text = anthropicData.content?.[0]?.text ?? '';
+    const openaiData = await openaiRes.json();
+    const text = openaiData.choices?.[0]?.message?.content ?? '';
 
     return new Response(JSON.stringify({ text }), {
       status: 200,
