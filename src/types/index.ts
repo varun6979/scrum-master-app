@@ -20,6 +20,8 @@ export interface TeamMember {
   avatarColor: string;
   capacityPoints: number;
   createdAt: string;
+  oooStart?: string;   // ISO date e.g. "2026-05-01"
+  oooEnd?: string;     // ISO date e.g. "2026-05-03"
 }
 
 // ─── Epic ─────────────────────────────────────────────────────────────────────

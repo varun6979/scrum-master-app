@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   MessageSquare, AlertTriangle, CheckCircle2, Calendar,
   ChevronLeft, ChevronRight, Mic, Square,
-  Users, Zap, Copy, CheckCheck, ExternalLink, Bot,
+  Users, Zap, Copy, CheckCheck, ExternalLink, Bot, Plane,
 } from 'lucide-react';
 import { format, subDays, addDays, parseISO } from 'date-fns';
 import { useScrumStore, useActiveSprint } from '../store/useScrumStore';
@@ -561,6 +561,11 @@ function StandupCard({ entry }: { entry: ReturnType<typeof useScrumStore.getStat
 
 // ─── Main Page ──────────────────────────────────────────────────────────────────
 
+function isOOOOnDate(member: { oooStart?: string; oooEnd?: string }, date: string): boolean {
+  if (!member.oooStart || !member.oooEnd) return false;
+  return date >= member.oooStart && date <= member.oooEnd;
+}
+
 export function StandupPage() {
   const { standups, members } = useScrumStore();
   const activeSprint = useActiveSprint();
@@ -572,6 +577,7 @@ export function StandupPage() {
   const blockers = dateEntries.filter((s) => s.hasBlocker);
   const submitted = dateEntries.map((e) => e.memberId);
   const missing = members.filter((m) => !submitted.includes(m.id));
+  const oooMembers = members.filter((m) => isOOOOnDate(m, viewDate));
 
   const prevDay = () => setViewDate(format(subDays(parseISO(viewDate), 1), 'yyyy-MM-dd'));
   const nextDay = () => {
@@ -618,6 +624,25 @@ export function StandupPage() {
         </div>
         <button onClick={nextDay} disabled={isToday} className="p-2 rounded-lg border border-surface-border hover:bg-slate-50 disabled:opacity-40"><ChevronRight size={16} /></button>
       </div>
+
+      {/* OOO banner */}
+      {oooMembers.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Plane size={15} className="text-amber-500" />
+            <h3 className="text-sm font-semibold text-amber-700">Out of Office {isToday ? 'Today' : 'This Day'} ({oooMembers.length})</h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {oooMembers.map((m) => (
+              <div key={m.id} className="flex items-center gap-2 bg-amber-100 rounded-lg px-3 py-1.5">
+                <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: m.avatarColor }}>{m.avatarInitials}</div>
+                <span className="text-xs font-medium text-amber-800">{m.name}</span>
+                <span className="text-xs text-amber-600">· {m.oooStart === m.oooEnd ? 'today' : `until ${new Date((m.oooEnd ?? m.oooStart!) + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Blockers summary */}
       {blockers.length > 0 && (

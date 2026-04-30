@@ -1,10 +1,21 @@
 import { useState } from 'react';
-import { Users, Plus, Trash2, Edit2, X, Mail, Star } from 'lucide-react';
+import { Users, Plus, Trash2, Edit2, X, Mail, Plane, CalendarOff } from 'lucide-react';
 import { useScrumStore } from '../store/useScrumStore';
 import { TeamMember, MemberRole } from '../types';
 import { Avatar } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { ProgressBar } from '../components/ui/ProgressBar';
+
+function isOOOToday(member: TeamMember): boolean {
+  if (!member.oooStart || !member.oooEnd) return false;
+  const today = new Date().toISOString().split('T')[0];
+  return today >= member.oooStart && today <= member.oooEnd;
+}
+
+function formatOOORange(start: string, end: string): string {
+  const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return start === end ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
+}
 
 const ROLE_LABELS: Record<MemberRole, string> = {
   scrum_master: 'Scrum Master',
@@ -26,13 +37,18 @@ function MemberForm({ member, onSave, onCancel }: {
   const [role, setRole] = useState<MemberRole>(member?.role ?? 'developer');
   const [capacity, setCapacity] = useState(member?.capacityPoints ?? 30);
   const [color, setColor] = useState(member?.avatarColor ?? AVATAR_COLORS[0]);
+  const [oooStart, setOooStart] = useState(member?.oooStart ?? '');
+  const [oooEnd, setOooEnd] = useState(member?.oooEnd ?? '');
 
   const initials = name.trim().split(' ').map((w) => w[0] ?? '').join('').toUpperCase().slice(0, 2);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSave({ name: name.trim(), email, role, avatarInitials: initials, avatarColor: color, capacityPoints: capacity });
+    onSave({
+      name: name.trim(), email, role, avatarInitials: initials, avatarColor: color, capacityPoints: capacity,
+      oooStart: oooStart || undefined, oooEnd: oooEnd || oooStart || undefined,
+    });
   };
 
   return (
@@ -66,7 +82,21 @@ function MemberForm({ member, onSave, onCancel }: {
           <label className="block text-xs font-medium text-slate-700 mb-1">Sprint Capacity (points)</label>
           <input type="number" min={1} max={100} className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={capacity} onChange={(e) => setCapacity(Number(e.target.value))} />
         </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">OOO Start Date</label>
+          <input type="date" className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={oooStart} onChange={(e) => { setOooStart(e.target.value); if (!oooEnd) setOooEnd(e.target.value); }} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">OOO End Date</label>
+          <input type="date" className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={oooEnd} min={oooStart} onChange={(e) => setOooEnd(e.target.value)} />
+        </div>
       </div>
+      {oooStart && (
+        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
+          <span className="flex items-center gap-1.5"><Plane size={12} /> OOO set: {formatOOORange(oooStart, oooEnd || oooStart)}</span>
+          <button type="button" onClick={() => { setOooStart(''); setOooEnd(''); }} className="text-amber-500 hover:text-amber-700">Clear</button>
+        </div>
+      )}
       <div className="flex justify-end gap-3 pt-2 border-t border-surface-border">
         <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
         <button type="submit" className="px-4 py-2 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600">Save Member</button>
@@ -78,12 +108,17 @@ function MemberForm({ member, onSave, onCancel }: {
 function MemberCard({ member }: { member: TeamMember }) {
   const { stories, activeSprintId, updateMember, deleteMember } = useScrumStore();
   const [editing, setEditing] = useState(false);
+  const [showOOOPicker, setShowOOOPicker] = useState(false);
+  const [quickOooStart, setQuickOooStart] = useState('');
+  const [quickOooEnd, setQuickOooEnd] = useState('');
 
   const sprintStories = stories.filter((s) => s.sprintId === activeSprintId && s.assigneeId === member.id);
   const assignedPoints = sprintStories.reduce((sum, s) => sum + s.storyPoints, 0);
   const donePoints = sprintStories.filter((s) => s.status === 'done').reduce((sum, s) => sum + s.storyPoints, 0);
   const capacityPct = Math.min(100, Math.round((assignedPoints / Math.max(1, member.capacityPoints)) * 100));
   const isOvercapacity = assignedPoints > member.capacityPoints;
+  const ooo = isOOOToday(member);
+  const hasUpcomingOOO = member.oooStart && !ooo && member.oooStart > new Date().toISOString().split('T')[0];
 
   if (editing) {
     return (
@@ -94,24 +129,75 @@ function MemberCard({ member }: { member: TeamMember }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-surface-border overflow-hidden hover:shadow-md transition-shadow">
+    <div className={`bg-white rounded-xl border overflow-hidden hover:shadow-md transition-shadow ${ooo ? 'border-amber-300' : 'border-surface-border'}`}>
       {/* Color strip */}
-      <div className="h-1.5" style={{ backgroundColor: member.avatarColor }} />
+      <div className="h-1.5" style={{ backgroundColor: ooo ? '#F59E0B' : member.avatarColor }} />
       <div className="p-5">
+        {/* OOO banner */}
+        {ooo && (
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 text-xs text-amber-700 font-medium">
+            <Plane size={13} />
+            <span>Out of Office · {formatOOORange(member.oooStart!, member.oooEnd ?? member.oooStart!)}</span>
+            <button onClick={() => updateMember(member.id, { oooStart: undefined, oooEnd: undefined })} className="ml-auto text-amber-400 hover:text-amber-600">
+              <X size={12} />
+            </button>
+          </div>
+        )}
+        {hasUpcomingOOO && (
+          <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-4 text-xs text-blue-700">
+            <CalendarOff size={13} />
+            <span>OOO upcoming · {formatOOORange(member.oooStart!, member.oooEnd ?? member.oooStart!)}</span>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            <Avatar initials={member.avatarInitials} color={member.avatarColor} size="lg" />
+            <div className="relative">
+              <Avatar initials={member.avatarInitials} color={ooo ? '#F59E0B' : member.avatarColor} size="lg" />
+              {ooo && (
+                <div className="absolute -top-1 -right-1 bg-amber-400 rounded-full p-0.5">
+                  <Plane size={8} className="text-white" />
+                </div>
+              )}
+            </div>
             <div>
               <h3 className="font-semibold text-slate-800">{member.name}</h3>
               <Badge variant="role" value={member.role} />
             </div>
           </div>
           <div className="flex gap-1">
+            <button
+              onClick={() => { setShowOOOPicker(!showOOOPicker); setQuickOooStart(member.oooStart ?? ''); setQuickOooEnd(member.oooEnd ?? ''); }}
+              title="Set Out of Office"
+              className={`p-1.5 rounded-lg transition-colors ${ooo ? 'text-amber-500 bg-amber-50' : 'text-slate-400 hover:text-amber-500 hover:bg-amber-50'}`}>
+              <Plane size={14} />
+            </button>
             <button onClick={() => setEditing(true)} className="p-1.5 text-slate-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg transition-colors"><Edit2 size={14} /></button>
             <button onClick={() => { if (window.confirm(`Remove ${member.name} from the team?`)) deleteMember(member.id); }} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
           </div>
         </div>
+
+        {/* Quick OOO picker */}
+        {showOOOPicker && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 space-y-2">
+            <p className="text-xs font-medium text-amber-700">Set Out of Office</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-slate-500">From</label>
+                <input type="date" className="w-full border border-surface-border rounded px-2 py-1 text-xs mt-0.5" value={quickOooStart} onChange={(e) => { setQuickOooStart(e.target.value); if (!quickOooEnd) setQuickOooEnd(e.target.value); }} />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">To</label>
+                <input type="date" className="w-full border border-surface-border rounded px-2 py-1 text-xs mt-0.5" value={quickOooEnd} min={quickOooStart} onChange={(e) => setQuickOooEnd(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => { updateMember(member.id, { oooStart: undefined, oooEnd: undefined }); setShowOOOPicker(false); }} className="text-xs px-2 py-1 rounded text-slate-500 hover:bg-slate-100">Clear</button>
+              <button onClick={() => { if (quickOooStart) updateMember(member.id, { oooStart: quickOooStart, oooEnd: quickOooEnd || quickOooStart }); setShowOOOPicker(false); }} className="text-xs px-3 py-1 rounded bg-amber-500 text-white hover:bg-amber-600">Save</button>
+            </div>
+          </div>
+        )}
 
         {/* Email */}
         {member.email && (
@@ -160,6 +246,7 @@ export function TeamManagement() {
 
   const totalCapacity = members.reduce((sum, m) => sum + m.capacityPoints, 0);
   const totalAssigned = stories.filter((s) => s.sprintId === activeSprintId).reduce((sum, s) => sum + s.storyPoints, 0);
+  const oooToday = members.filter(isOOOToday);
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -178,6 +265,17 @@ export function TeamManagement() {
           <Plus size={16} /> Add Member
         </button>
       </div>
+
+      {/* OOO Today banner */}
+      {oooToday.length > 0 && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6">
+          <Plane size={16} className="text-amber-500 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Out of Office Today</p>
+            <p className="text-xs text-amber-700">{oooToday.map(m => m.name).join(', ')} — consider redistributing their stories</p>
+          </div>
+        </div>
+      )}
 
       {/* Sprint capacity summary */}
       <div className="bg-white rounded-xl border border-surface-border p-5 mb-6">
