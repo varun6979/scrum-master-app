@@ -469,5 +469,6 @@ export function getSeedData(): AppState {
         createdAt: fmt(subDays(today, 21)), updatedAt: fmt(subDays(today, 21)),
       },
     ],
+    vacations: [],
   };
 }

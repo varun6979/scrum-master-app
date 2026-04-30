@@ -5,7 +5,7 @@ import {
   StandupEntry, AppSettings, BurndownSnapshot,
   Milestone, Risk, Dependency, Comment, Decision,
   RetroItem, AISuggestion, Project, IntegrationConfig, ActivityLogEntry,
-  Initiative, Feature, MemberPermission, FeatureFlag,
+  Initiative, Feature, MemberPermission, FeatureFlag, VacationEntry,
 } from '../types';
 import { getSeedData } from '../lib/seedData';
 import { generateId } from '../lib/idgen';
@@ -109,6 +109,11 @@ interface ScrumActions {
   addFeatureFlag: (f: Omit<FeatureFlag, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateFeatureFlag: (id: string, updates: Partial<FeatureFlag>) => void;
   deleteFeatureFlag: (id: string) => void;
+
+  // Vacations
+  addVacation: (v: Omit<VacationEntry, 'id' | 'createdAt'>) => void;
+  updateVacation: (id: string, updates: Partial<VacationEntry>) => void;
+  deleteVacation: (id: string) => void;
 
   // Supabase sync
   currentOrgId: string | null;
@@ -502,6 +507,20 @@ export const useScrumStore = create<ScrumStore>()(
       deleteFeatureFlag: (id) =>
         set((state) => ({
           featureFlags: (state.featureFlags ?? []).filter((f) => f.id !== id),
+        })),
+
+      // ── Vacations ─────────────────────────────────────────────────────────
+      addVacation: (v) =>
+        set((state) => ({
+          vacations: [...(state.vacations ?? []), { ...v, id: generateId(), createdAt: getTodayISO() } as VacationEntry],
+        })),
+      updateVacation: (id, updates) =>
+        set((state) => ({
+          vacations: (state.vacations ?? []).map((v) => v.id === id ? { ...v, ...updates } : v),
+        })),
+      deleteVacation: (id) =>
+        set((state) => ({
+          vacations: (state.vacations ?? []).filter((v) => v.id !== id),
         })),
     }),
     {

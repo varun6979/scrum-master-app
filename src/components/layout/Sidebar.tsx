@@ -19,6 +19,7 @@ const coreNav = [
   { to: '/sprints', label: 'Sprints', icon: Layers },
   { to: '/standup', label: 'Daily Standup', icon: MessageSquare },
   { to: '/workload', label: 'Team Workload', icon: Users2 },
+  { to: '/vacation', label: 'Vacation Planner', icon: CalendarRange },
 ];
 
 const planningNav = [

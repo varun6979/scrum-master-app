@@ -336,6 +336,7 @@ export interface AppState {
   initiatives: Initiative[];
   features: Feature[];
   featureFlags: FeatureFlag[];
+  vacations: VacationEntry[];
 }
 
 // ─── Retrospective ────────────────────────────────────────────────────────────
@@ -406,6 +407,16 @@ export interface FeatureFlag {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── Vacation ─────────────────────────────────────────────────────────────────
+export interface VacationEntry {
+  id: string;
+  memberId: string;
+  startDate: string;   // ISO date "YYYY-MM-DD"
+  endDate: string;     // ISO date "YYYY-MM-DD"
+  reason?: string;     // "PTO", "Holiday", "Sick", etc.
+  createdAt: string;
 }
 
 // ─── AI Suggestion ────────────────────────────────────────────────────────────
