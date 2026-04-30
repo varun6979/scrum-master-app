@@ -97,6 +97,130 @@ function actionLabel(action: AgentAction): string {
   }
 }
 
+// ─── Local Agile Knowledge Base ────────────────────────────────────────────────
+
+function localAgileKnowledge(q: string, ctx: { stories: any[]; sprints: any[]; epics: any[]; members: any[]; risks: any[]; activeSprint: any }): string | null {
+  const text = q.toLowerCase();
+  const { stories, sprints, epics, members, risks, activeSprint } = ctx;
+
+  // Sprint creation
+  if ((text.includes('create') || text.includes('make') || text.includes('generate')) && text.includes('sprint')) {
+    const match = text.match(/(\d+)\s*sprint/);
+    const count = match ? parseInt(match[1]) : 6;
+    const today = new Date();
+    const actions = [];
+    let startDate = new Date(today);
+    // Start from next Monday if not already Monday
+    const dayOfWeek = startDate.getDay();
+    if (dayOfWeek !== 1) {
+      startDate = addDays(startDate, (8 - dayOfWeek) % 7 || 7);
+    }
+    const existingCount = sprints.length;
+    for (let i = 0; i < count; i++) {
+      const endDate = addDays(startDate, 13);
+      actions.push({
+        type: 'CREATE_SPRINT',
+        data: {
+          name: `Sprint ${existingCount + i + 1}`,
+          goal: `Sprint ${existingCount + i + 1} delivery goal`,
+          startDate: format(startDate, 'yyyy-MM-dd'),
+          endDate: format(endDate, 'yyyy-MM-dd'),
+          status: 'planning',
+        },
+      });
+      startDate = addDays(endDate, 1);
+    }
+    const actionsJson = '```actions\n' + JSON.stringify(actions, null, 2) + '\n```';
+    return `I'll create **${count} sprints** for you, each 2 weeks long:\n\n${actions.map((a, i) => `- **${a.data.name}**: ${a.data.startDate} → ${a.data.endDate}`).join('\n')}\n\nClick **Execute All** below to apply them to your board.\n\n${actionsJson}`;
+  }
+
+  // Assign stories to sprint by epic
+  if (text.includes('assign') || text.includes('move') && text.includes('stor')) {
+    const epic = epics.find(e => text.includes(e.title.toLowerCase()));
+    const sprint = sprints.find(s => s.status === 'planning') ?? sprints[sprints.length - 1];
+    if (epic && sprint) {
+      const epicStories = stories.filter(s => s.epicId === epic.id && !s.sprintId);
+      if (epicStories.length === 0) return `No unassigned stories found for epic **${epic.title}**.`;
+      const actions = epicStories.map(s => ({ type: 'ASSIGN_STORY_TO_SPRINT', data: { storyId: s.id, sprintId: sprint.id, sprintName: sprint.name } }));
+      const actionsJson = '```actions\n' + JSON.stringify(actions, null, 2) + '\n```';
+      return `Moving **${epicStories.length} stories** from epic **${epic.title}** to **${sprint.name}**:\n\n${epicStories.map(s => `- ${s.title}`).join('\n')}\n\n${actionsJson}`;
+    }
+  }
+
+  // Sprint status
+  if (text.includes('sprint') && (text.includes('status') || text.includes('how') || text.includes('going'))) {
+    if (!activeSprint) return 'There is no active sprint. Go to the **Sprints** page to start one.';
+    const ss = stories.filter(s => s.sprintId === activeSprint.id);
+    const done = ss.filter(s => s.status === 'done');
+    const inProg = ss.filter(s => s.status === 'in_progress');
+    const blocked = ss.filter(s => s.status === 'blocked');
+    const pts = ss.reduce((a, s) => a + s.storyPoints, 0);
+    const donePts = done.reduce((a, s) => a + s.storyPoints, 0);
+    const pct = pts > 0 ? Math.round((donePts / pts) * 100) : 0;
+    return `## ${activeSprint.name} Status\n\n- **Progress**: ${pct}% complete (${donePts}/${pts} pts)\n- ✅ **Done**: ${done.length} stories\n- 🔄 **In Progress**: ${inProg.length} stories\n- 🚨 **Blocked**: ${blocked.length} stories\n- 📋 **Total**: ${ss.length} stories\n\n${pct >= 70 ? '✅ On track for a successful sprint!' : pct >= 40 ? '⚠️ Moderate pace — push through the backlog.' : '🚨 Behind pace — consider reducing scope or pairing up.'}`;
+  }
+
+  // PI Planning
+  if (text.includes('pi planning') || text.includes('program increment')) {
+    return `## PI Planning Guide\n\n**What is PI Planning?**\nA 2-day event where all Agile teams in an ART (Agile Release Train) meet to plan the next Program Increment (PI = 4-6 sprints / 8-12 weeks).\n\n**Day 1 Agenda:**\n- Business context & product vision (Product Management)\n- Architecture vision (System Architect)\n- Team breakouts: draft sprint plans, identify risks & dependencies\n- Draft plan review\n\n**Day 2 Agenda:**\n- Planning adjustments based on day 1 feedback\n- Final plan review per team\n- ROAM risks: **R**esolved, **O**wned, **A**ccepted, **M**itigated\n- Confidence vote (fist-of-five)\n- Commit to PI Objectives\n\n**Key Outputs:**\n- Team PI Objectives (committed + stretch)\n- Program Board (features, dependencies, milestones)\n- ROAM risk register\n- ART confidence vote\n\n**Tips:**\n- Prepare the backlog with Features before PI Planning\n- Involve Business Owners on Day 1\n- Time-box team breakouts to 90 minutes`;
+  }
+
+  // SAFe
+  if (text.includes('safe') || text.includes('scaled agile')) {
+    return `## SAFe (Scaled Agile Framework) Overview\n\n**4 Configurations:**\n- **Essential SAFe**: ART + Team level (minimum viable SAFe)\n- **Large Solution SAFe**: Multiple ARTs + Solution Train\n- **Portfolio SAFe**: Adds Lean Portfolio Management\n- **Full SAFe**: All levels\n\n**Key Roles:**\n- **Release Train Engineer (RTE)**: Agile coach for the ART — runs PI Planning, ART Sync\n- **Product Management**: Owns the Program Backlog (Features)\n- **System Architect**: Technical vision for the ART\n- **Business Owners**: Stakeholders who set business priorities\n\n**Key Ceremonies:**\n- **PI Planning** (quarterly): Full ART alignment\n- **ART Sync** (weekly): Cross-team coordination\n- **PO Sync** (weekly): Product Owner alignment\n- **System Demo** (end of each sprint): Integrated solution demo\n- **Inspect & Adapt** (end of PI): Retrospective + problem solving\n\n**Work Item Hierarchy:**\nEpic → Feature → Story → Task`;
+  }
+
+  // WSJF
+  if (text.includes('wsjf') || text.includes('weighted shortest')) {
+    return `## WSJF (Weighted Shortest Job First)\n\nUsed in SAFe to prioritize Features and Epics.\n\n**Formula:**\n> WSJF = Cost of Delay ÷ Job Duration\n\n**Cost of Delay = User/Business Value + Time Criticality + Risk Reduction/Opportunity Enablement**\n\n**Scoring (Fibonacci: 1, 2, 3, 5, 8, 13, 20):**\n\n| Factor | Question |\n|--------|----------|\n| User/Business Value | How valuable is this to users/business? |\n| Time Criticality | Does value decay over time? Is there a deadline? |\n| Risk Reduction | Does this reduce risk or enable future work? |\n| Job Size | How long will it take? (smaller = better WSJF) |\n\n**Example:**\n- Feature A: (8+5+3) ÷ 8 = **2.0**\n- Feature B: (5+2+1) ÷ 2 = **4.0** ← prioritize this one\n\nHigher WSJF score = higher priority.`;
+  }
+
+  // Retrospective
+  if (text.includes('retro') || text.includes('retrospective')) {
+    const blocked = stories.filter(s => s.status === 'blocked');
+    const carried = stories.filter(s => s.sprintId && s.status !== 'done' && sprints.find(sp => sp.id === s.sprintId && sp.status === 'completed'));
+    return `## Retrospective Guide\n\n**Popular Formats:**\n\n**1. Start/Stop/Continue**\n- Start: What should we begin doing?\n- Stop: What is hurting the team?\n- Continue: What is working well?\n\n**2. 4Ls**\n- Liked, Learned, Lacked, Longed For\n\n**3. Sailboat**\n- Wind (helping): what's pushing us forward?\n- Anchors (hindering): what's slowing us down?\n- Rocks (risks): what could sink us?\n- Destination: where are we heading?\n\n**Based on your data, discuss:**\n${blocked.length > 0 ? `- 🚨 ${blocked.length} blocked stories — what caused them?\n` : ''}${carried.length > 0 ? `- 📋 ${carried.length} stories carried over — how to prevent this?\n` : ''}- Team velocity trend\n- Process improvements\n- Team morale and collaboration\n\n**Best Practices:**\n- Time-box to 90 minutes\n- Create 2-3 action items max (not 10+)\n- Assign owners and due dates to action items\n- Follow up on previous retro actions first`;
+  }
+
+  // Velocity
+  if (text.includes('velocity')) {
+    const completed = sprints.filter(s => s.status === 'completed' && s.velocity);
+    if (completed.length === 0) return 'No completed sprints yet. Velocity is calculated after sprints complete.\n\n**Velocity** = average story points completed per sprint over the last 3-5 sprints. Use it for sprint planning and forecasting.';
+    const avg = Math.round(completed.reduce((a, s) => a + (s.velocity ?? 0), 0) / completed.length);
+    const last3 = completed.slice(-3);
+    const trend = last3.length >= 2 ? (last3[last3.length-1].velocity! > last3[0].velocity! ? '📈 Improving' : '📉 Declining') : '➡️ Stable';
+    return `## Your Velocity\n\n- **Average**: ${avg} pts/sprint\n- **Trend**: ${trend}\n- **Sprints analyzed**: ${completed.length}\n\n${completed.slice(-5).map(s => `- ${s.name}: ${s.velocity} pts`).join('\n')}\n\n**Tips to improve velocity:**\n- Reduce WIP (work in progress)\n- Break stories smaller (aim for <5 pts each)\n- Reduce carryover from sprint to sprint\n- Protect team from interruptions`;
+  }
+
+  // Overloaded / capacity
+  if (text.includes('overload') || text.includes('capacity') || text.includes('who is')) {
+    if (!activeSprint) return 'No active sprint to check capacity.';
+    const sprintStories = stories.filter(s => s.sprintId === activeSprint.id);
+    const loads = members.map(m => {
+      const pts = sprintStories.filter(s => s.assigneeId === m.id).reduce((a, s) => a + s.storyPoints, 0);
+      return { name: m.name, pts, capacity: m.capacityPoints, pct: m.capacityPoints > 0 ? Math.round((pts / m.capacityPoints) * 100) : 0 };
+    });
+    return `## Team Capacity — ${activeSprint.name}\n\n${loads.map(l => `- **${l.name}**: ${l.pts}/${l.capacity} pts (${l.pct}%) ${l.pct > 100 ? '🚨 Over capacity' : l.pct === 0 ? '⚪ No work assigned' : l.pct >= 80 ? '✅ Well loaded' : '🔵 Under-loaded'}`).join('\n')}`;
+  }
+
+  // Definition of Done
+  if (text.includes('definition of done') || text.includes('dod')) {
+    return `## Definition of Done (DoD)\n\nA shared agreement on when a story is truly "done".\n\n**Typical DoD checklist:**\n- ✅ Code written and peer-reviewed\n- ✅ Unit tests written and passing\n- ✅ Integration tests passing\n- ✅ Code merged to main branch\n- ✅ No known defects introduced\n- ✅ Acceptance criteria verified by PO\n- ✅ Deployed to staging/test environment\n- ✅ Documentation updated\n- ✅ No increase in technical debt (or logged)\n\n**Why it matters:**\nWithout DoD, "done" means different things to different people, leading to quality issues and rework.\n\n**Tip:** Keep DoD visible in every sprint review and retrospective.`;
+  }
+
+  // User story writing
+  if (text.includes('user story') || text.includes('acceptance criteria') || text.includes('gherkin')) {
+    return `## Writing Great User Stories\n\n**Format:**\n> As a **[type of user]**, I want **[goal]** so that **[reason/value]**\n\n**Example:**\n> As a **Product Owner**, I want to **see velocity trends** so that **I can make accurate sprint commitments**.\n\n**INVEST Criteria:**\n- **I**ndependent — can be developed alone\n- **N**egotiable — not a fixed contract\n- **V**aluable — delivers value to user\n- **E**stimable — team can size it\n- **S**mall — fits in one sprint\n- **T**estable — clear acceptance criteria\n\n**Acceptance Criteria (Gherkin format):**\n\`\`\`\nGiven [context/precondition]\nWhen [action taken]\nThen [expected outcome]\n\`\`\`\n\n**Example:**\n\`\`\`\nGiven I am on the dashboard\nWhen I click the velocity chart\nThen I see the last 5 sprints with points completed\n\`\`\`\n\n**Story Splitting Techniques:**\n- By workflow steps\n- By data variations\n- By user roles\n- By happy/unhappy path`;
+  }
+
+  // Scrum ceremonies
+  if (text.includes('ceremoni') || text.includes('ceremony') || text.includes('standup') || text.includes('scrum event')) {
+    return `## Scrum Ceremonies\n\n**1. Sprint Planning** (start of sprint, 2-4 hrs)\n- What can we deliver? (Sprint Goal)\n- How will we do it? (Task breakdown)\n- Team commits to sprint backlog\n\n**2. Daily Standup / Daily Scrum** (daily, 15 min)\n- What did I do yesterday?\n- What will I do today?\n- Any impediments/blockers?\n- *Tip: Stand up, stay focused, no problem-solving in the meeting*\n\n**3. Sprint Review** (end of sprint, 1-2 hrs)\n- Demo working software to stakeholders\n- Gather feedback\n- Update backlog based on feedback\n\n**4. Sprint Retrospective** (end of sprint, 1-1.5 hrs)\n- What went well?\n- What needs improvement?\n- Action items with owners\n\n**5. Backlog Refinement** (mid-sprint, 1-2 hrs)\n- Groom and estimate upcoming stories\n- Ensure top of backlog is ready for next sprint\n- Split large stories`;
+  }
+
+  return null;
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export function AIAssistantPage() {
@@ -199,14 +323,29 @@ Choose your role below to see suggested prompts, or just ask me anything!`,
 
       setMessages(prev => [...prev, aiMsg]);
     } catch (err) {
-      const errorMsg: ChatMessage = {
-        id: `err-${Date.now()}`,
-        role: 'assistant',
-        content: `⚠️ **Connection error**: ${err instanceof Error ? err.message : 'Unknown error'}\n\nMake sure the \`ANTHROPIC_API_KEY\` environment variable is set in Vercel.`,
-        timestamp: new Date().toISOString(),
-        isError: true,
-      };
-      setMessages(prev => [...prev, errorMsg]);
+      // Fallback to local knowledge base when API is unavailable
+      const localAnswer = localAgileKnowledge(trimmed, { stories, sprints, epics, members, risks, activeSprint });
+      if (localAnswer) {
+        const actions = parseActions(localAnswer);
+        const displayText = stripActions(localAnswer);
+        setMessages(prev => [...prev, {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          content: displayText + '\n\n*— Local knowledge base (API unavailable)*',
+          timestamp: new Date().toISOString(),
+          actions: actions.length > 0 ? actions : undefined,
+          actionsExecuted: false,
+        }]);
+      } else {
+        const errorMsg: ChatMessage = {
+          id: `err-${Date.now()}`,
+          role: 'assistant',
+          content: `⚠️ **API unavailable**: ${err instanceof Error ? err.message : 'Unknown error'}\n\nTo enable full AI: add credits at **console.anthropic.com/settings/billing**\n\nYou can still use the quick prompts and knowledge topics on the left — they use the local knowledge base.`,
+          timestamp: new Date().toISOString(),
+          isError: true,
+        };
+        setMessages(prev => [...prev, errorMsg]);
+      }
     } finally {
       setLoading(false);
     }
