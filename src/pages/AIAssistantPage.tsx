@@ -340,7 +340,7 @@ Choose your role below to see suggested prompts, or just ask me anything!`,
         const errorMsg: ChatMessage = {
           id: `err-${Date.now()}`,
           role: 'assistant',
-          content: `⚠️ **API unavailable**: ${err instanceof Error ? err.message : 'Unknown error'}\n\nTo enable full AI: add credits at **console.anthropic.com/settings/billing**\n\nYou can still use the quick prompts and knowledge topics on the left — they use the local knowledge base.`,
+          content: `⚠️ **API unavailable**: ${err instanceof Error ? err.message : 'Unknown error'}\n\nYou can still use the quick prompts and knowledge topics on the left — they use the local knowledge base.`,
           timestamp: new Date().toISOString(),
           isError: true,
         };
