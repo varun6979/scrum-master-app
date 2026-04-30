@@ -6,7 +6,7 @@ import {
   CheckCircle2, XCircle, AlertCircle, Code2, MessageCircle, Rocket,
   Share2, Zap, Building2, Crown, Star, Shield, Globe, Clock,
   ArrowRight, Play, ChevronDown, ChevronRight, Bot, GitBranch,
-  Slack, Bell, Repeat, Lock, Award, TrendingUp, Target, Cpu,
+  Bell, Repeat, Lock, Award, TrendingUp, Target, Cpu, Hash,
 } from 'lucide-react';
 
 // ─── Data ───────────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ const testimonials = [
 
 const integrations = [
   { name: 'GitHub', icon: Code2, color: '#1e293b' },
-  { name: 'Slack', icon: Slack, color: '#4A154B' },
+  { name: 'Slack', icon: Hash, color: '#4A154B' },
   { name: 'Jira', icon: Globe, color: '#0052CC' },
   { name: 'Confluence', icon: BookOpen, color: '#172B4D' },
   { name: 'Figma', icon: Layers, color: '#F24E1E' },
