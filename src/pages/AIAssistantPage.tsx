@@ -1,489 +1,573 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
-  Sparkles, Send, CheckCheck, X, AlertTriangle, Clock,
-  FileText, Target, Zap, BarChart3, ChevronRight,
+  Sparkles, Send, AlertTriangle, Clock, Zap, BarChart3,
+  ChevronRight, Plus, ArrowRight, CheckCircle2, XCircle,
+  Loader2, RefreshCw, BookOpen, Users, Target, TrendingUp,
+  Flag, Shield, Calendar, GitBranch, Lightbulb,
 } from 'lucide-react';
-import { differenceInDays, parseISO, format } from 'date-fns';
-import { useScrumStore } from '../store/useScrumStore';
-import { Story, Sprint, Risk, StandupEntry, TeamMember } from '../types';
+import { format, addDays, parseISO } from 'date-fns';
+import { useScrumStore, useActiveSprint } from '../store/useScrumStore';
+import { generateId } from '../lib/idgen';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
-  text: string;
+  content: string;
   timestamp: string;
+  actions?: AgentAction[];
+  actionsExecuted?: boolean;
+  isError?: boolean;
 }
 
-interface AISugg {
-  id: string;
-  icon: React.ReactNode;
-  text: string;
-  confidence: 'High' | 'Medium';
-  dismissed: boolean;
-  accepted: boolean;
-  relatedLink?: string;
-  relatedLabel?: string;
+interface AgentAction {
+  type: 'CREATE_SPRINT' | 'ASSIGN_STORY_TO_SPRINT' | 'CREATE_STORY' | 'UPDATE_SPRINT' | 'START_SPRINT';
+  data: Record<string, unknown>;
+  label?: string;
+  executed?: boolean;
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+// ─── Prompt suggestions by role ───────────────────────────────────────────────
 
-const todayStr = () => format(new Date(), 'yyyy-MM-dd');
+const QUICK_PROMPTS = {
+  'Scrum Master': [
+    'Create the next 6 sprints starting from today (2-week sprints)',
+    'What should we discuss in our retrospective?',
+    'Who is overloaded this sprint?',
+    'How do I run an effective PI Planning session?',
+    'What are ROAM risks in SAFe?',
+    'Create a sprint and assign all backlog stories from the first epic to it',
+  ],
+  'Product Owner': [
+    'How do I prioritize my backlog using WSJF?',
+    'Write a user story for a login feature',
+    'What is the difference between an Epic, Feature, and Story in SAFe?',
+    'How do I write good acceptance criteria in Gherkin format?',
+    'What is the Definition of Ready?',
+    'How do I run a sprint review?',
+  ],
+  'Project Manager': [
+    'How is our velocity trending?',
+    'When will we finish the backlog at current pace?',
+    'Explain PI Planning and how it maps to quarterly planning',
+    'What are the key SAFe roles and their responsibilities?',
+    'How do I calculate WSJF priority?',
+    'What metrics should I track for an Agile team?',
+  ],
+};
 
-function safeDay(d: string | undefined) {
-  if (!d) return null;
-  try { return parseISO(d); } catch { return null; }
+const KNOWLEDGE_TOPICS = [
+  { icon: <BookOpen size={14} />, label: 'Scrum Ceremonies', q: 'Explain all Scrum ceremonies and best practices for running them' },
+  { icon: <Shield size={14} />, label: 'SAFe Framework', q: 'Explain the SAFe framework, its levels, and how PI Planning works' },
+  { icon: <Calendar size={14} />, label: 'PI Planning', q: 'Walk me through how to run a 2-day PI Planning event step by step' },
+  { icon: <Target size={14} />, label: 'OKRs & Goals', q: 'How do I align sprint goals with OKRs and quarterly business objectives?' },
+  { icon: <TrendingUp size={14} />, label: 'Velocity & Metrics', q: 'What Agile metrics should I track and how do I improve team velocity?' },
+  { icon: <Users size={14} />, label: 'Team Health', q: 'How do I improve team morale, psychological safety, and Agile maturity?' },
+  { icon: <GitBranch size={14} />, label: 'Dependencies', q: 'How do I manage cross-team dependencies in SAFe Agile?' },
+  { icon: <Flag size={14} />, label: 'Release Planning', q: 'How do I create a release plan and roadmap in an Agile context?' },
+  { icon: <Lightbulb size={14} />, label: 'Story Splitting', q: 'What are the best techniques to split large user stories and epics?' },
+];
+
+// ─── Action parser ─────────────────────────────────────────────────────────────
+
+function parseActions(text: string): AgentAction[] {
+  const match = text.match(/```actions\n([\s\S]*?)```/);
+  if (!match) return [];
+  try {
+    const parsed = JSON.parse(match[1]);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
-function buildSuggestions(stories: Story[],
-  sprints: Sprint[],
-  risks: Risk[],
-  standups: StandupEntry[],
-  members: TeamMember[],
-): AISugg[] {
-  const suggestions: AISugg[] = [];
-  const today = new Date();
-
-  // 1. In-progress stories stale for > 3 days
-  const staleInProgress = stories.filter((s) => {
-    if (s.status !== 'in_progress') return false;
-    const updated = safeDay(s.updatedAt);
-    if (!updated) return false;
-    return differenceInDays(today, updated) > 3;
-  });
-  staleInProgress.slice(0, 3).forEach((s) => {
-    const days = differenceInDays(today, safeDay(s.updatedAt)!);
-    suggestions.push({
-      id: `stale-${s.id}`,
-      icon: <Clock size={15} className="text-amber-500" />,
-      text: `Story "${s.title}" has been in progress for ${days} days. Consider breaking it down or escalating.`,
-      confidence: 'High',
-      dismissed: false,
-      accepted: false,
-    });
-  });
-
-  // 2. Velocity declining
-  const completed = sprints.filter((sp) => sp.status === 'completed' && typeof sp.velocity === 'number');
-  if (completed.length >= 2) {
-    const last = completed[completed.length - 1].velocity!;
-    const prev = completed[completed.length - 2].velocity!;
-    if (prev > 0 && (prev - last) / prev > 0.1) {
-      const pct = Math.round(((prev - last) / prev) * 100);
-      suggestions.push({
-        id: 'velocity-drop',
-        icon: <AlertTriangle size={15} className="text-red-500" />,
-        text: `Your velocity has dropped ${pct}% from ${prev} to ${last} pts over the last 2 sprints. Consider reducing sprint scope.`,
-        confidence: 'High',
-        dismissed: false,
-        accepted: false,
-      });
-    }
-  }
-
-  // 3. Risks without mitigation
-  const unmitigated = risks.filter((r) => r.status === 'open' && (!r.mitigation || r.mitigation.trim() === ''));
-  unmitigated.slice(0, 2).forEach((r) => {
-    suggestions.push({
-      id: `risk-${r.id}`,
-      icon: <AlertTriangle size={15} className="text-orange-500" />,
-      text: `Risk "${r.title}" has no mitigation plan. Assign an owner and add a mitigation strategy.`,
-      confidence: 'High',
-      dismissed: false,
-      accepted: false,
-    });
-  });
-
-  // 4. Blocked standups
-  const recentBlockers = standups.filter((su) => su.hasBlocker && su.date >= todayStr().slice(0, 7));
-  recentBlockers.slice(0, 2).forEach((su) => {
-    const member = members.find((m) => m.id === su.memberId);
-    if (member) {
-      suggestions.push({
-        id: `blocker-${su.id}`,
-        icon: <AlertTriangle size={15} className="text-red-400" />,
-        text: `${member.name} reported a blocker on ${su.date}: "${su.blockers.slice(0, 80)}...". Escalation may be needed.`,
-        confidence: 'Medium',
-        dismissed: false,
-        accepted: false,
-      });
-    }
-  });
-
-  // 5. Capacity overload check
-  const activeSprint = sprints.find((sp) => sp.status === 'active');
-  if (activeSprint) {
-    const sprintStories = stories.filter((s) => s.sprintId === activeSprint.id);
-    const totalPoints = sprintStories.reduce((sum, s) => sum + s.storyPoints, 0);
-    const totalCapacity = members.reduce((sum, m) => sum + m.capacityPoints, 0);
-    if (totalCapacity > 0 && totalPoints > totalCapacity) {
-      const pct = Math.round((totalPoints / totalCapacity) * 100);
-      suggestions.push({
-        id: 'capacity-over',
-        icon: <Zap size={15} className="text-purple-500" />,
-        text: `Team is at ${pct}% capacity (${totalPoints} pts committed vs ${totalCapacity} pts capacity). Risk of burnout and lower velocity next sprint.`,
-        confidence: 'High',
-        dismissed: false,
-        accepted: false,
-      });
-    }
-  }
-
-  return suggestions.slice(0, 6);
+function stripActions(text: string): string {
+  return text.replace(/```actions\n[\s\S]*?```/g, '').trim();
 }
 
-function buildAIResponse(
-  input: string,
-  stories: Story[],
-  sprints: Sprint[],
-  risks: Risk[],
-  members: TeamMember[],
-  standups: StandupEntry[],
-): string {
-  const q = input.toLowerCase().trim();
-  const activeSprint = sprints.find((sp) => sp.status === 'active');
-
-  if (q.includes('sprint going') || q.includes('how is') || q.includes('status')) {
-    if (!activeSprint) return 'There is no active sprint right now. Head to the Sprints page to start one.';
-    const sprintStories = stories.filter((s) => s.sprintId === activeSprint.id);
-    const done = sprintStories.filter((s) => s.status === 'done');
-    const inProg = sprintStories.filter((s) => s.status === 'in_progress');
-    const todo = sprintStories.filter((s) => s.status === 'todo');
-    const total = sprintStories.reduce((sum, s) => sum + s.storyPoints, 0);
-    const donePoints = done.reduce((sum, s) => sum + s.storyPoints, 0);
-    const pct = total > 0 ? Math.round((donePoints / total) * 100) : 0;
-    return `${activeSprint.name} is ${pct}% complete by points (${donePoints}/${total} pts). ${done.length} stories done, ${inProg.length} in progress, ${todo.length} to do. ${pct >= 60 ? 'Looking good!' : pct >= 30 ? 'Moderate pace — keep pushing.' : 'Behind pace. Consider scope reduction or pair programming.'}`;
+function actionLabel(action: AgentAction): string {
+  switch (action.type) {
+    case 'CREATE_SPRINT': return `Create sprint: ${action.data.name}`;
+    case 'ASSIGN_STORY_TO_SPRINT': return `Assign story to sprint`;
+    case 'CREATE_STORY': return `Create story: ${action.data.title}`;
+    case 'UPDATE_SPRINT': return `Update sprint`;
+    case 'START_SPRINT': return `Start sprint`;
+    default: return action.type;
   }
-
-  if (q.includes('risk') || q.includes('danger') || q.includes('concern')) {
-    const openRisks = risks.filter((r) => r.status === 'open');
-    if (openRisks.length === 0) return 'No open risks registered. That\'s a good sign, but consider reviewing risks at each sprint planning.';
-    const top = openRisks.sort((a, b) => b.riskScore - a.riskScore).slice(0, 3);
-    return `You have ${openRisks.length} open risks. Top concerns:\n${top.map((r, i) => `${i + 1}. "${r.title}" (score ${r.riskScore}, ${r.probability} probability)`).join('\n')}`;
-  }
-
-  if (q.includes('finish') || q.includes('complete') || q.includes('when') || q.includes('forecast')) {
-    const completedSprints = sprints.filter((sp) => sp.status === 'completed' && sp.velocity);
-    if (completedSprints.length === 0) return 'Not enough sprint data to forecast. Complete at least one sprint, then visit the Forecast page for Monte Carlo projections.';
-    const avgVelocity = completedSprints.reduce((sum, sp) => sum + (sp.velocity ?? 0), 0) / completedSprints.length;
-    const backlogPoints = stories.filter((s) => !s.sprintId || s.status === 'backlog').reduce((sum, s) => sum + s.storyPoints, 0);
-    const sprintsNeeded = avgVelocity > 0 ? Math.ceil(backlogPoints / avgVelocity) : '?';
-    return `Based on your average velocity of ${avgVelocity.toFixed(1)} pts/sprint and ${backlogPoints} points remaining in the backlog, you need approximately ${sprintsNeeded} more sprints. Visit the Forecast page for a full Monte Carlo analysis.`;
-  }
-
-  if (q.includes('overload') || q.includes('capacity') || q.includes('who')) {
-    if (!activeSprint) return 'No active sprint to analyze capacity for.';
-    const sprintStories = stories.filter((s) => s.sprintId === activeSprint.id && s.assigneeId);
-    const memberLoad: Record<string, number> = {};
-    sprintStories.forEach((s) => {
-      if (s.assigneeId) memberLoad[s.assigneeId] = (memberLoad[s.assigneeId] || 0) + s.storyPoints;
-    });
-    const overloaded = members
-      .filter((m) => (memberLoad[m.id] || 0) > m.capacityPoints)
-      .map((m) => `${m.name} (${memberLoad[m.id]}pts committed vs ${m.capacityPoints}pts capacity)`);
-    if (overloaded.length === 0) return 'No team members appear overloaded in the current sprint. Capacity looks healthy!';
-    return `Potentially overloaded members:\n${overloaded.join('\n')}\n\nConsider redistributing some stories.`;
-  }
-
-  if (q.includes('retro') || q.includes('retrospective') || q.includes('discuss')) {
-    const blockers = standups.filter((su) => su.hasBlocker).slice(-5);
-    const incomplete = stories.filter((s) => s.sprintId && s.status !== 'done' && sprints.find((sp) => sp.id === s.sprintId && sp.status === 'completed'));
-    const suggestions = [];
-    if (blockers.length > 0) suggestions.push(`Recurring blockers (${blockers.length} reported)`);
-    if (incomplete.length > 0) suggestions.push(`${incomplete.length} stories carried over from last sprint`);
-    const completedSprints = sprints.filter((sp) => sp.status === 'completed' && sp.velocity);
-    if (completedSprints.length >= 2) {
-      const last = completedSprints[completedSprints.length - 1].velocity!;
-      const prev = completedSprints[completedSprints.length - 2].velocity!;
-      if (Math.abs(last - prev) / prev > 0.15) suggestions.push(`Velocity variance: ${prev} → ${last} pts`);
-    }
-    if (suggestions.length === 0) return 'Good sprint! Discuss: What went well? Process improvements? Team morale?';
-    return `Suggested retro topics:\n${suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}\n\nVisit the Retrospective page to log items.`;
-  }
-
-  return "I can help you analyze your sprint data. Try asking:\n• \"How is the sprint going?\"\n• \"What are the main risks?\"\n• \"When will we finish?\"\n• \"Who is overloaded?\"\n• \"What should we discuss in retro?\"";
 }
 
-// ─── AIAssistantPage ───────────────────────────────────────────────────────────
+// ─── Main Component ────────────────────────────────────────────────────────────
 
 export function AIAssistantPage() {
-  const { stories, sprints, risks, members, standups, epics } = useScrumStore();
+  const store = useScrumStore();
+  const { stories, sprints, epics, members, risks, standups,
+    addSprint, updateSprint, assignStoryToSprint, addStory, startSprint } = store;
+  const activeSprint = useActiveSprint();
 
-  // Suggestion feed state
-  const initialSuggestions = useMemo(
-    () => buildSuggestions(stories, sprints, risks, standups, members),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
-  const [suggestions, setSuggestions] = useState<AISugg[]>(initialSuggestions);
+  const [messages, setMessages] = useState<ChatMessage[]>([{
+    id: 'init',
+    role: 'assistant',
+    content: `# Welcome to your Agile AI Assistant! 🚀
 
-  // Chat state
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'init',
-      role: 'assistant',
-      text: "Hi! I'm your AI Sprint Assistant. I have access to your sprint data, risks, team capacity and more. Ask me anything about your project.",
-      timestamp: new Date().toISOString(),
-    },
-  ]);
+I'm trained on **Agile, Scrum, SAFe, PI Planning, Kanban, Lean** and all major project management frameworks.
+
+**I can answer questions like:**
+- How do I run PI Planning?
+- What is WSJF prioritization?
+- How do I split a large epic into stories?
+- What metrics should a Scrum Master track?
+
+**I can also take actions in your board:**
+- "Create the next 6 sprints starting today"
+- "Create a sprint and move all stories from Epic X to it"
+- "Create a story for [description]"
+
+Choose your role below to see suggested prompts, or just ask me anything!`,
+    timestamp: new Date().toISOString(),
+  }]);
+
   const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<keyof typeof QUICK_PROMPTS>('Scrum Master');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  function sendMessage() {
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    const userMsg: ChatMessage = { id: Date.now() + '-u', role: 'user', text: trimmed, timestamp: new Date().toISOString() };
-    const aiText = buildAIResponse(trimmed, stories, sprints, risks, members, standups);
-    const aiMsg: ChatMessage = { id: Date.now() + '-a', role: 'assistant', text: aiText, timestamp: new Date().toISOString() };
-    setMessages((prev) => [...prev, userMsg, aiMsg]);
+  // Build context for the AI
+  const context = useMemo(() => ({
+    activeSprint,
+    sprints,
+    stories: stories.slice(0, 100),
+    epics,
+    members,
+    risks: risks.slice(0, 20),
+    today: format(new Date(), 'yyyy-MM-dd'),
+  }), [activeSprint, sprints, stories, epics, members, risks]);
+
+  // Convert messages to API format
+  function buildApiMessages(msgs: ChatMessage[]) {
+    return msgs
+      .filter(m => m.id !== 'init')
+      .map(m => ({ role: m.role, content: m.content }));
+  }
+
+  async function sendMessage(text?: string) {
+    const trimmed = (text ?? input).trim();
+    if (!trimmed || loading) return;
+
+    const userMsg: ChatMessage = {
+      id: `u-${Date.now()}`,
+      role: 'user',
+      content: trimmed,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
-  }
+    setLoading(true);
 
-  function dismissSugg(id: string) {
-    setSuggestions((prev) => prev.map((s) => s.id === id ? { ...s, dismissed: true } : s));
-  }
-  function acceptSugg(id: string) {
-    setSuggestions((prev) => prev.map((s) => s.id === id ? { ...s, accepted: true } : s));
-  }
+    try {
+      const apiMessages = [...buildApiMessages(messages), { role: 'user', content: trimmed }];
 
-  // Quick actions
-  const [actionOutputs, setActionOutputs] = useState<Record<string, string>>({});
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMessages, context }),
+      });
 
-  function genStandupSummary() {
-    const today = todayStr();
-    const todayStandups = standups.filter((su) => su.date === today);
-    if (todayStandups.length === 0) {
-      setActionOutputs((p) => ({ ...p, standup: 'No standups logged today. Head to Daily Standup to add entries.' }));
-      return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const rawText: string = data.text ?? '';
+      const actions = parseActions(rawText);
+      const displayText = stripActions(rawText);
+
+      const aiMsg: ChatMessage = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content: displayText,
+        timestamp: new Date().toISOString(),
+        actions: actions.length > 0 ? actions : undefined,
+        actionsExecuted: false,
+      };
+
+      setMessages(prev => [...prev, aiMsg]);
+    } catch (err) {
+      const errorMsg: ChatMessage = {
+        id: `err-${Date.now()}`,
+        role: 'assistant',
+        content: `⚠️ **Connection error**: ${err instanceof Error ? err.message : 'Unknown error'}\n\nMake sure the \`ANTHROPIC_API_KEY\` environment variable is set in Vercel.`,
+        timestamp: new Date().toISOString(),
+        isError: true,
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setLoading(false);
     }
-    const lines = todayStandups.map((su) => {
-      const m = members.find((mem) => mem.id === su.memberId);
-      return `${m?.name ?? 'Unknown'}: ${su.today}${su.hasBlocker ? ` [BLOCKED: ${su.blockers}]` : ''}`;
+  }
+
+  // Execute actions from AI response
+  function executeActions(msgId: string, actions: AgentAction[]) {
+    const results: string[] = [];
+
+    // We need access to latest sprint IDs that may have been created in earlier actions
+    const createdSprintIds: Record<string, string> = {};
+
+    actions.forEach(action => {
+      try {
+        switch (action.type) {
+          case 'CREATE_SPRINT': {
+            const d = action.data;
+            const id = generateId();
+            createdSprintIds[d.name as string] = id;
+            addSprint({
+              name: d.name as string,
+              goal: (d.goal as string) ?? '',
+              startDate: d.startDate as string,
+              endDate: d.endDate as string,
+              status: (d.status as 'planning' | 'active' | 'completed') ?? 'planning',
+            });
+            results.push(`✅ Created sprint: **${d.name}**`);
+            break;
+          }
+          case 'ASSIGN_STORY_TO_SPRINT': {
+            const d = action.data;
+            const storyId = d.storyId as string;
+            const sprintId = d.sprintId as string;
+            // Find actual sprint (may be newly created, so search by name too)
+            const targetSprint = sprints.find(sp => sp.id === sprintId) ??
+              sprints.find(sp => sp.name === d.sprintName);
+            if (targetSprint) {
+              assignStoryToSprint(storyId, targetSprint.id);
+              const story = stories.find(s => s.id === storyId);
+              results.push(`✅ Moved story **${story?.title ?? storyId}** to **${targetSprint.name}**`);
+            } else {
+              results.push(`⚠️ Sprint not found for story ${storyId}`);
+            }
+            break;
+          }
+          case 'CREATE_STORY': {
+            const d = action.data;
+            addStory({
+              title: d.title as string,
+              description: (d.description as string) ?? '',
+              acceptanceCriteria: [],
+              priority: (d.priority as 'critical' | 'high' | 'medium' | 'low') ?? 'medium',
+              storyPoints: (d.storyPoints as number) ?? 3,
+              storyType: (d.storyType as 'story' | 'bug' | 'task' | 'spike') ?? 'story',
+              epicId: (d.epicId as string) ?? '',
+              sprintId: d.sprintId as string | undefined,
+              status: 'backlog',
+              assigneeId: undefined,
+              labels: [],
+              tags: [],
+              components: [],
+              deployedTo: [],
+              externalLinks: [],
+              watchers: [],
+              subtaskIds: [],
+              definitionOfDone: [],
+              qaStatus: 'not_started',
+              stakeholderIds: [],
+              successMetrics: [],
+              blockerFlag: false,
+              crossTeamDependency: false,
+              attachments: [],
+              order: 0,
+            });
+            results.push(`✅ Created story: **${d.title}**`);
+            break;
+          }
+          case 'START_SPRINT': {
+            const d = action.data;
+            const sp = sprints.find(s => s.id === d.sprintId || s.name === d.sprintName);
+            if (sp) {
+              startSprint(sp.id);
+              results.push(`✅ Started sprint: **${sp.name}**`);
+            }
+            break;
+          }
+          default:
+            results.push(`⚠️ Unknown action: ${action.type}`);
+        }
+      } catch (e) {
+        results.push(`❌ Failed: ${action.type} — ${e instanceof Error ? e.message : String(e)}`);
+      }
     });
-    setActionOutputs((p) => ({ ...p, standup: `Standup Summary — ${today}\n\n${lines.join('\n\n')}` }));
+
+    // Add result message
+    const resultMsg: ChatMessage = {
+      id: `result-${Date.now()}`,
+      role: 'assistant',
+      content: `**Actions completed:**\n\n${results.join('\n')}`,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [
+      ...prev.map(m => m.id === msgId ? { ...m, actionsExecuted: true } : m),
+      resultMsg,
+    ]);
   }
 
-  function estimatePoints() {
-    const modal = prompt('Paste story description:');
-    if (!modal) return;
-    const words = modal.trim().split(/\s+/).length;
-    const pts = words < 20 ? 1 : words < 50 ? 2 : words < 100 ? 3 : words < 180 ? 5 : words < 300 ? 8 : 13;
-    setActionOutputs((p) => ({ ...p, estimate: `Based on story complexity (${words} words), estimated story points: ${pts}.\n\nThis is a rough baseline — adjust based on technical complexity, dependencies, and team familiarity.` }));
+  function clearChat() {
+    setMessages([{
+      id: 'init',
+      role: 'assistant',
+      content: messages[0].content,
+      timestamp: new Date().toISOString(),
+    }]);
   }
 
-  function draftSprintGoal() {
-    const planningSprint = sprints.find((sp) => sp.status === 'planning');
-    if (!planningSprint) {
-      setActionOutputs((p) => ({ ...p, goal: 'No planning sprint found. Create a sprint in planning status first.' }));
-      return;
-    }
-    const planStories = stories.filter((s) => s.sprintId === planningSprint.id);
-    if (planStories.length === 0) {
-      setActionOutputs((p) => ({ ...p, goal: `Sprint "${planningSprint.name}" has no stories assigned yet.` }));
-      return;
-    }
-    const epicIds = [...new Set(planStories.map((s) => s.epicId))];
-    const epicTitles = epicIds.map((id) => epics.find((e) => e.id === id)?.title ?? 'Unknown').join(', ');
-    const totalPoints = planStories.reduce((sum, s) => sum + s.storyPoints, 0);
-    setActionOutputs((p) => ({
-      ...p,
-      goal: `Suggested Sprint Goal for "${planningSprint.name}":\n\nDeliver ${planStories.length} stories (${totalPoints} pts) across ${epicTitles}, focusing on ${planStories[0].title} and related work, to advance the team's delivery cadence.`,
-    }));
+  // Render markdown-ish text
+  function renderText(text: string) {
+    const lines = text.split('\n');
+    return lines.map((line, i) => {
+      // Heading
+      if (line.startsWith('# ')) return <h2 key={i} className="text-base font-bold text-slate-900 mt-2 mb-1">{line.slice(2)}</h2>;
+      if (line.startsWith('## ')) return <h3 key={i} className="text-sm font-bold text-slate-800 mt-2 mb-0.5">{line.slice(3)}</h3>;
+      if (line.startsWith('### ')) return <h4 key={i} className="text-xs font-bold text-slate-700 mt-1">{line.slice(4)}</h4>;
+      // Bullet
+      if (line.startsWith('- ') || line.startsWith('• ')) {
+        const content = line.slice(2);
+        return <div key={i} className="flex gap-1.5 text-sm text-slate-700 leading-relaxed"><span className="mt-1 text-brand-400 flex-shrink-0">•</span><span dangerouslySetInnerHTML={{ __html: boldify(content) }} /></div>;
+      }
+      // Numbered
+      const numbered = line.match(/^(\d+)\. (.+)/);
+      if (numbered) return <div key={i} className="flex gap-1.5 text-sm text-slate-700 leading-relaxed"><span className="text-brand-500 font-semibold flex-shrink-0">{numbered[1]}.</span><span dangerouslySetInnerHTML={{ __html: boldify(numbered[2]) }} /></div>;
+      // Empty
+      if (!line.trim()) return <div key={i} className="h-1.5" />;
+      // Normal
+      return <p key={i} className="text-sm text-slate-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: boldify(line) }} />;
+    });
   }
 
-  const activeSprint = sprints.find((sp) => sp.status === 'active');
-  const visibleSuggestions = suggestions.filter((s) => !s.dismissed);
+  function boldify(text: string): string {
+    return text
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`(.+?)`/g, '<code class="bg-slate-100 text-brand-700 px-1 rounded text-xs font-mono">$1</code>');
+  }
+
+  const sprintStats = useMemo(() => {
+    if (!activeSprint) return null;
+    const ss = stories.filter(s => s.sprintId === activeSprint.id);
+    const done = ss.filter(s => s.status === 'done');
+    const pts = done.reduce((a, s) => a + s.storyPoints, 0);
+    const totalPts = ss.reduce((a, s) => a + s.storyPoints, 0);
+    return { total: ss.length, done: done.length, pts, totalPts, pct: totalPts > 0 ? Math.round((pts / totalPts) * 100) : 0 };
+  }, [activeSprint, stories]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center">
-          <Sparkles size={20} className="text-white" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900">AI Sprint Assistant</h1>
-            <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full border border-brand-200">
-              Powered by Claude
-            </span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shadow-lg">
+            <Sparkles size={20} className="text-white" />
           </div>
-          <p className="text-slate-500 text-sm">Intelligent insights from your real sprint data</p>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-bold text-slate-900">Agile AI Assistant</h1>
+              <span className="text-xs bg-brand-100 text-brand-700 font-semibold px-2 py-0.5 rounded-full border border-brand-200">Claude claude-sonnet-4-6</span>
+            </div>
+            <p className="text-slate-500 text-sm">Expert in Agile · Scrum · SAFe · PI Planning · Project Management</p>
+          </div>
         </div>
+        <button onClick={clearChat} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+          <RefreshCw size={13} /> New Chat
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left — Suggestion Feed */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">AI Suggestions</h2>
-          {visibleSuggestions.length === 0 && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 text-center text-slate-400">
-              <Sparkles size={24} className="mx-auto mb-2" />
-              <p className="text-sm">No suggestions right now — everything looks good!</p>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
+
+        {/* LEFT SIDEBAR — role picker + quick prompts + knowledge topics */}
+        <div className="space-y-4">
+          {/* Role selector */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Your Role</p>
+            <div className="space-y-1">
+              {(Object.keys(QUICK_PROMPTS) as Array<keyof typeof QUICK_PROMPTS>).map(role => (
+                <button
+                  key={role}
+                  onClick={() => setSelectedRole(role)}
+                  className={`w-full text-left text-sm px-3 py-2 rounded-lg transition-colors font-medium ${selectedRole === role ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                >
+                  {role}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick prompts */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Quick Prompts</p>
+            <div className="space-y-1.5">
+              {QUICK_PROMPTS[selectedRole].map((prompt, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendMessage(prompt)}
+                  disabled={loading}
+                  className="w-full text-left text-xs text-slate-600 hover:text-brand-700 hover:bg-brand-50 px-2 py-1.5 rounded-lg transition-colors border border-transparent hover:border-brand-100 flex items-start gap-1.5"
+                >
+                  <ChevronRight size={11} className="mt-0.5 flex-shrink-0 text-brand-400" />
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Knowledge topics */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Knowledge Base</p>
+            <div className="space-y-1">
+              {KNOWLEDGE_TOPICS.map((topic, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendMessage(topic.q)}
+                  disabled={loading}
+                  className="w-full text-left flex items-center gap-2 text-xs text-slate-600 hover:text-brand-700 hover:bg-brand-50 px-2 py-1.5 rounded-lg transition-colors"
+                >
+                  <span className="text-brand-500">{topic.icon}</span>
+                  {topic.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Sprint snapshot */}
+          {activeSprint && sprintStats && (
+            <div className="bg-gradient-to-br from-brand-500 to-purple-600 rounded-xl p-4 text-white">
+              <p className="text-xs font-semibold uppercase tracking-wide opacity-80 mb-2">Active Sprint</p>
+              <p className="text-sm font-bold truncate">{activeSprint.name}</p>
+              <div className="w-full bg-white/20 rounded-full h-1.5 mt-2">
+                <div className="bg-white h-1.5 rounded-full" style={{ width: `${sprintStats.pct}%` }} />
+              </div>
+              <p className="text-xs opacity-80 mt-1">{sprintStats.done}/{sprintStats.total} stories · {sprintStats.pts}/{sprintStats.totalPts} pts · {sprintStats.pct}%</p>
             </div>
           )}
-          {visibleSuggestions.map((sugg) => (
-            <div key={sugg.id} className={`bg-white border rounded-2xl p-4 transition-all ${sugg.accepted ? 'border-green-300 bg-green-50' : 'border-slate-200'}`}>
-              <div className="flex items-start gap-2 mb-2">
-                <span className="mt-0.5 flex-shrink-0">{sugg.icon}</span>
-                <p className="text-sm text-slate-700 leading-relaxed flex-1">{sugg.text}</p>
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sugg.confidence === 'High' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                  {sugg.confidence} confidence
-                </span>
-                <div className="flex gap-1 ml-auto">
-                  {!sugg.accepted && (
-                    <button onClick={() => acceptSugg(sugg.id)} className="flex items-center gap-1 text-xs text-green-700 hover:text-green-900 bg-green-100 hover:bg-green-200 px-2 py-1 rounded-lg transition-colors">
-                      <CheckCheck size={12} /> Accept
-                    </button>
-                  )}
-                  <button onClick={() => dismissSugg(sugg.id)} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-lg transition-colors">
-                    <X size={12} /> Dismiss
-                  </button>
-                </div>
-              </div>
-              {sugg.accepted && <p className="text-xs text-green-600 mt-1 font-medium">Accepted</p>}
-            </div>
-          ))}
         </div>
 
-        {/* Center — Chat */}
-        <div className="flex flex-col bg-white border border-slate-200 rounded-2xl overflow-hidden" style={{ height: '600px' }}>
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-            <Sparkles size={15} className="text-brand-600" />
-            <span className="text-sm font-semibold text-slate-800">Sprint Chat</span>
+        {/* CENTER — Chat */}
+        <div className="lg:col-span-3 flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ height: '680px' }}>
+          {/* Chat header */}
+          <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2 bg-slate-50">
+            <div className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="text-sm font-semibold text-slate-700">Agile AI · Expert Mode</span>
+            <span className="ml-auto text-xs text-slate-400">{messages.length - 1} messages</span>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap ${
-                  msg.role === 'user'
-                    ? 'bg-brand-600 text-white rounded-br-sm'
-                    : 'bg-slate-100 text-slate-800 rounded-bl-sm'
-                }`}>
-                  {msg.text}
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            {messages.map(msg => (
+              <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {msg.role === 'assistant' && (
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Sparkles size={13} className="text-white" />
+                  </div>
+                )}
+                <div className={`max-w-[85%] ${msg.role === 'user' ? 'order-1' : ''}`}>
+                  <div className={`px-4 py-3 rounded-2xl ${
+                    msg.role === 'user'
+                      ? 'bg-brand-600 text-white rounded-br-sm'
+                      : msg.isError
+                        ? 'bg-red-50 border border-red-200 rounded-bl-sm'
+                        : 'bg-slate-50 border border-slate-200 rounded-bl-sm'
+                  }`}>
+                    {msg.role === 'user'
+                      ? <p className="text-sm text-white">{msg.content}</p>
+                      : <div className="space-y-0.5">{renderText(msg.content)}</div>
+                    }
+                  </div>
+
+                  {/* Actions panel */}
+                  {msg.actions && msg.actions.length > 0 && !msg.actionsExecuted && (
+                    <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-1">
+                        <Zap size={12} /> {msg.actions.length} action{msg.actions.length > 1 ? 's' : ''} ready to execute
+                      </p>
+                      <div className="space-y-1 mb-3">
+                        {msg.actions.map((action, i) => (
+                          <div key={i} className="flex items-center gap-1.5 text-xs text-amber-700">
+                            <ArrowRight size={11} className="flex-shrink-0" />
+                            {actionLabel(action)}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => executeActions(msg.id, msg.actions!)}
+                          className="flex items-center gap-1.5 text-xs bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg font-medium transition-colors"
+                        >
+                          <CheckCircle2 size={12} /> Execute All
+                        </button>
+                        <button
+                          onClick={() => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, actionsExecuted: true } : m))}
+                          className="flex items-center gap-1.5 text-xs bg-white border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg transition-colors hover:bg-slate-50"
+                        >
+                          <XCircle size={12} /> Skip
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {msg.actionsExecuted && msg.actions && (
+                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1"><CheckCircle2 size={11} /> Actions executed</p>
+                  )}
+
+                  <p className="text-xs text-slate-400 mt-1 px-1">
+                    {format(new Date(msg.timestamp), 'h:mm a')}
+                  </p>
                 </div>
               </div>
             ))}
+
+            {loading && (
+              <div className="flex gap-3 justify-start">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                  <Sparkles size={13} className="text-white" />
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl rounded-bl-sm px-4 py-3">
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <Loader2 size={14} className="animate-spin text-brand-500" />
+                    Thinking...
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={chatEndRef} />
           </div>
-          <div className="px-3 py-3 border-t border-slate-100 flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              placeholder="Ask about your sprint..."
-              className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400"
-            />
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim()}
-              className="bg-brand-600 hover:bg-brand-700 text-white rounded-xl px-3 py-2 disabled:opacity-40 transition-colors"
-            >
-              <Send size={15} />
-            </button>
+
+          {/* Input */}
+          <div className="px-4 py-3 border-t border-slate-100 bg-white">
+            <div className="flex gap-2">
+              <textarea
+                rows={2}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                placeholder="Ask anything about Agile, SAFe, PI Planning... or say 'Create next 6 sprints'"
+                className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none"
+              />
+              <button
+                onClick={() => sendMessage()}
+                disabled={!input.trim() || loading}
+                className="bg-gradient-to-br from-brand-600 to-purple-600 hover:from-brand-700 hover:to-purple-700 text-white rounded-xl px-4 disabled:opacity-40 transition-all flex-shrink-0 self-end py-2"
+              >
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mt-1.5 px-1">Press Enter to send · Shift+Enter for new line</p>
           </div>
         </div>
-
-        {/* Right — Quick Actions */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Quick Actions</h2>
-
-          <QuickActionCard
-            icon={<FileText size={16} className="text-blue-600" />}
-            label="Generate Standup Summary"
-            description="Summarize today's standups"
-            onClick={genStandupSummary}
-            output={actionOutputs['standup']}
-          />
-          <QuickActionCard
-            icon={<Target size={16} className="text-emerald-600" />}
-            label="Estimate Story Points"
-            description="Paste a description for a quick estimate"
-            onClick={estimatePoints}
-            output={actionOutputs['estimate']}
-          />
-          <QuickActionCard
-            icon={<Zap size={16} className="text-amber-600" />}
-            label="Draft Sprint Goal"
-            description="Generate a goal from planning sprint stories"
-            onClick={draftSprintGoal}
-            output={actionOutputs['goal']}
-          />
-          <div className="bg-white border border-slate-200 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <BarChart3 size={16} className="text-purple-600" />
-              <span className="text-sm font-medium text-slate-800">Create Sprint Report</span>
-            </div>
-            <p className="text-xs text-slate-500 mb-3">Generate a full PDF sprint report</p>
-            <a
-              href="/reports"
-              className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 font-medium transition-colors"
-            >
-              Go to Reports <ChevronRight size={12} />
-            </a>
-          </div>
-
-          {/* Sprint snapshot card */}
-          {activeSprint && (
-            <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4">
-              <p className="text-xs font-semibold text-brand-700 uppercase tracking-wide mb-2">Active Sprint Snapshot</p>
-              {(() => {
-                const ss = stories.filter((s) => s.sprintId === activeSprint.id);
-                const done = ss.filter((s) => s.status === 'done').length;
-                const total = ss.length;
-                const pts = ss.filter((s) => s.status === 'done').reduce((a, s) => a + s.storyPoints, 0);
-                const totalPts = ss.reduce((a, s) => a + s.storyPoints, 0);
-                return (
-                  <div className="space-y-1">
-                    <p className="text-xs text-brand-800">{activeSprint.name}</p>
-                    <div className="w-full bg-brand-200 rounded-full h-1.5">
-                      <div className="bg-brand-600 h-1.5 rounded-full" style={{ width: `${totalPts > 0 ? (pts / totalPts) * 100 : 0}%` }} />
-                    </div>
-                    <p className="text-xs text-brand-700">{done}/{total} stories · {pts}/{totalPts} pts</p>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-        </div>
       </div>
-    </div>
-  );
-}
-
-function QuickActionCard({ icon, label, description, onClick, output }: {
-  icon: React.ReactNode;
-  label: string;
-  description: string;
-  onClick: () => void;
-  output?: string;
-}) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4">
-      <div className="flex items-center gap-2 mb-1">
-        {icon}
-        <span className="text-sm font-medium text-slate-800">{label}</span>
-      </div>
-      <p className="text-xs text-slate-500 mb-3">{description}</p>
-      <button
-        onClick={onClick}
-        className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium transition-colors"
-      >
-        Run
-      </button>
-      {output && (
-        <div className="mt-3 bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
-          {output}
-        </div>
-      )}
     </div>
   );
 }
