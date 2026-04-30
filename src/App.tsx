@@ -42,6 +42,7 @@ import { VelocityPage } from './pages/VelocityPage';
 import { WorkloadPage } from './pages/WorkloadPage';
 import { ReleasesPage } from './pages/ReleasesPage';
 import { VacationPlannerPage } from './pages/VacationPlannerPage';
+import { AutomationPage } from './pages/AutomationPage';
 
 
 export default function App() {
@@ -94,6 +95,7 @@ export default function App() {
             <Route path="workload" element={<WorkloadPage />} />
             <Route path="releases" element={<ReleasesPage />} />
             <Route path="vacation" element={<VacationPlannerPage />} />
+            <Route path="automation" element={<AutomationPage />} />
           </Route>
         </Routes>
       </AuthProvider>

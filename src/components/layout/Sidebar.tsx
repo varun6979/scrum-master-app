@@ -5,7 +5,7 @@ import {
   GitBranch, CalendarRange, BookMarked, ChevronDown, ChevronRight,
   Trophy, RotateCcw, Heart, Activity, TrendingUp, Sparkles, Upload, GitCompare,
   Layers3, Clock, ScrollText, ShieldCheck, Map, Presentation, Search, LayoutGrid,
-  Rocket, Globe, Power, Package, Gauge, Users2, X,
+  Rocket, Globe, Power, Package, Gauge, Users2, X, Repeat,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState } from 'react';
@@ -20,6 +20,7 @@ const coreNav = [
   { to: '/standup', label: 'Daily Standup', icon: MessageSquare },
   { to: '/workload', label: 'Team Workload', icon: Users2 },
   { to: '/vacation', label: 'Vacation Planner', icon: CalendarRange },
+  { to: '/automation', label: 'Automation', icon: Repeat },
 ];
 
 const planningNav = [
