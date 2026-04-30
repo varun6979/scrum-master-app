@@ -1,6 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Uses native fetch — no SDK needed (works in Vercel Edge runtime)
 
 const SYSTEM_PROMPT = `You are an elite Agile Coach AI assistant embedded inside ScrumBoard Pro — a full-featured Scrum Management Platform. You are an expert in:
 
@@ -156,17 +154,39 @@ ${(context.risks ?? []).filter((r: Record<string, unknown>) => r.status === 'ope
 
     const systemWithContext = SYSTEM_PROMPT + '\n\n' + contextStr;
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      system: systemWithContext,
-      messages: messages.map((m: { role: string; content: string }) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY is not set in environment variables.' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        system: systemWithContext,
+        messages: messages.map((m: { role: string; content: string }) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        })),
+      }),
     });
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : '';
+    if (!anthropicRes.ok) {
+      const errBody = await anthropicRes.text();
+      throw new Error(`Anthropic API error ${anthropicRes.status}: ${errBody}`);
+    }
+
+    const anthropicData = await anthropicRes.json();
+    const text = anthropicData.content?.[0]?.text ?? '';
 
     return new Response(JSON.stringify({ text }), {
       status: 200,
