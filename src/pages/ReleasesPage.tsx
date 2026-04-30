@@ -84,7 +84,7 @@ export function ReleasesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {(['planned', 'in_progress', 'released', 'cancelled'] as ReleaseStatus[]).map(s => {
           const cfg = STATUS_CONFIG[s];
           const count = releases.filter(r => r.status === s).length;

@@ -73,7 +73,7 @@ export function PermissionsPage() {
       </div>
 
       {/* Role presets */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {LEVELS.map((level) => (
           <div key={level} className={`rounded-xl border px-4 py-3 ${LEVEL_COLORS[level]}`}>
             <p className="text-sm font-bold capitalize mb-2">{level}</p>

@@ -5,7 +5,7 @@ import {
   GitBranch, CalendarRange, BookMarked, ChevronDown, ChevronRight,
   Trophy, RotateCcw, Heart, Activity, TrendingUp, Sparkles, Upload, GitCompare,
   Layers3, Clock, ScrollText, ShieldCheck, Map, Presentation, Search, LayoutGrid,
-  Rocket, Globe, Power, Package, Gauge, Users2,
+  Rocket, Globe, Power, Package, Gauge, Users2, X,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState } from 'react';
@@ -60,7 +60,7 @@ const launchNav = [
   { to: '/market-comparison', label: 'Market Analysis', icon: Trophy },
 ];
 
-function NavSection({ title, items, defaultOpen = true }: { title: string; items: typeof coreNav; defaultOpen?: boolean }) {
+function NavSection({ title, items, defaultOpen = true, onNavClick }: { title: string; items: typeof coreNav; defaultOpen?: boolean; onNavClick?: () => void }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="mb-1">
@@ -78,6 +78,7 @@ function NavSection({ title, items, defaultOpen = true }: { title: string; items
               key={to}
               to={to}
               end={end}
+              onClick={onNavClick}
               className={({ isActive }) =>
                 clsx(
                   'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150',
@@ -97,7 +98,7 @@ function NavSection({ title, items, defaultOpen = true }: { title: string; items
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const activeSprint = useActiveSprint();
   const { settings, risks, milestones } = useScrumStore();
 
@@ -105,16 +106,28 @@ export function Sidebar() {
   const atRiskMilestones = milestones.filter((m) => m.status === 'at_risk').length;
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-60 flex flex-col z-40" style={{ backgroundColor: '#1E293B' }}>
+    <aside
+      className={clsx(
+        'fixed left-0 top-0 h-screen w-60 flex flex-col z-40 transition-transform duration-300',
+        'lg:translate-x-0',
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      )}
+      style={{ backgroundColor: '#1E293B' }}
+    >
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-700">
         <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center flex-shrink-0">
           <Zap size={16} className="text-white" />
         </div>
-        <div>
-          <p className="text-white font-semibold text-sm leading-tight">{settings.projectName}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-semibold text-sm leading-tight truncate">{settings.projectName}</p>
           <p className="text-slate-500 text-xs">Scrum Master</p>
         </div>
+        {onClose && (
+          <button onClick={onClose} className="lg:hidden text-slate-400 hover:text-white p-1 flex-shrink-0">
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Active sprint badge */}
@@ -147,10 +160,10 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-2">
-        <NavSection title="Core" items={coreNav} defaultOpen={true} />
-        <NavSection title="Planning" items={planningNav} defaultOpen={true} />
-        <NavSection title="Insights" items={insightsNav} defaultOpen={true} />
-        <NavSection title="🚀 Go-to-Market" items={launchNav} defaultOpen={true} />
+        <NavSection title="Core" items={coreNav} defaultOpen={true} onNavClick={onClose} />
+        <NavSection title="Planning" items={planningNav} defaultOpen={false} onNavClick={onClose} />
+        <NavSection title="Insights" items={insightsNav} defaultOpen={false} onNavClick={onClose} />
+        <NavSection title="🚀 Go-to-Market" items={launchNav} defaultOpen={false} onNavClick={onClose} />
       </nav>
 
       {/* Footer: command palette hint + version */}

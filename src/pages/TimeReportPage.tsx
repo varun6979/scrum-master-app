@@ -155,7 +155,7 @@ export function TimeReportPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-surface-border px-4 py-3">
           <p className="text-xs text-slate-400 mb-1">Stories Tracked</p>
           <p className="text-2xl font-bold text-slate-800">{filteredStories.length}</p>
@@ -199,7 +199,7 @@ export function TimeReportPage() {
         </label>
       </div>
 
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         {/* Group summary */}
         <div className="col-span-1">
           <div className="bg-white rounded-2xl border border-surface-border overflow-hidden">

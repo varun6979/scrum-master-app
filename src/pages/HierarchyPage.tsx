@@ -347,7 +347,7 @@ export function HierarchyPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Total Stories', value: stats.total, color: 'text-slate-700', bg: 'bg-slate-50' },
           { label: 'In Progress', value: stats.inProgress, color: 'text-purple-600', bg: 'bg-purple-50' },

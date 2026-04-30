@@ -69,7 +69,7 @@ function DecisionForm({ decision, onSave, onCancel }: {
         <label className="block text-xs font-medium text-slate-700 mb-1">Consequences & Trade-offs</label>
         <textarea className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" rows={2} value={consequences} onChange={(e) => setConsequences(e.target.value)} placeholder="Expected outcomes, trade-offs, risks accepted..." />
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-medium text-slate-700 mb-1">Date</label>
           <input type="date" className="w-full border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -256,7 +256,7 @@ export function DecisionsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div className="bg-white rounded-xl border border-surface-border p-4">
           <p className="text-xs text-slate-400 font-medium">Total Decisions</p>
           <p className="text-2xl font-bold text-slate-800 mt-1">{decisions.length}</p>

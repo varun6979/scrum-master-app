@@ -49,7 +49,7 @@ export function ReportsPage() {
       </div>
 
       {/* Summary stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Sprints Completed', value: completedSprints.length },
           { label: 'Avg Velocity', value: `${avgVelocity}pt`, sub: 'per sprint' },
@@ -144,7 +144,7 @@ export function ReportsPage() {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {(['done', 'review', 'in_progress', 'todo', 'backlog'] as const).map((st) => {
               const count = sprintStories.filter((s) => s.status === st).length;
               const pts = sprintStories.filter((s) => s.status === st).reduce((sum, s) => sum + s.storyPoints, 0);
