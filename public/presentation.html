@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ScrumBoard Pro — Presentation</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary: #4F46E5;
+      --accent: #7C3AED;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --gray-50: #F9FAFB;
+      --gray-100: #F3F4F6;
+      --gray-200: #E5E7EB;
+      --gray-300: #D1D5DB;
+      --gray-500: #6B7280;
+      --gray-700: #374151;
+      --gray-900: #111827;
+    }
+
+    html, body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+    }
+
+    /* ─── SLIDE BASE ─────────────────────────────────────── */
+    .slide {
+      width: 297mm;
+      min-height: 210mm;
+      height: 210mm;
+      position: relative;
+      overflow: hidden;
+      page-break-after: always;
+      break-after: page;
+      display: flex;
+      flex-direction: column;
+      background: #ffffff;
+    }
+
+    /* screen preview spacing */
+    @media screen {
+      .slide {
+        margin: 24px auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        border-radius: 8px;
+      }
+    }
+
+    /* ─── PRINT ──────────────────────────────────────────── */
+    @page {
+      size: A4 landscape;
+      margin: 0;
+    }
+
+    @media print {
+      html, body {
+        background: white;
+        margin: 0;
+        padding: 0;
+      }
+      .slide {
+        width: 297mm;
+        height: 210mm;
+        margin: 0;
+        border-radius: 0;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+      }
+    }
+
+    /* ─── BRANDING HEADER (slides 2-8) ───────────────────── */
+    .slide-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 28px 0 28px;
+      flex-shrink: 0;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: -0.3px;
+    }
+
+    .brand-logo .bolt {
+      font-size: 14px;
+    }
+
+    .slide-tag {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--gray-500);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ─── SLIDE NUMBER ───────────────────────────────────── */
+    .slide-number {
+      position: absolute;
+      bottom: 14px;
+      right: 22px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--gray-300);
+      letter-spacing: 0.5px;
+    }
+
+    /* ─── SLIDE CONTENT AREA ─────────────────────────────── */
+    .slide-body {
+      flex: 1;
+      padding: 0 28px 24px 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* ─── SLIDE 1: COVER ─────────────────────────────────── */
+    .slide-cover {
+      background: linear-gradient(135deg, #4F46E5 0%, #6D28D9 50%, #7C3AED 100%);
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .cover-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .cover-icon {
+      font-size: 52px;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .cover-title {
+      font-size: 54px;
+      font-weight: 900;
+      color: #ffffff;
+      letter-spacing: -2px;
+      line-height: 1;
+    }
+
+    .cover-subtitle {
+      font-size: 18px;
+      font-weight: 400;
+      color: rgba(255,255,255,0.82);
+      max-width: 480px;
+      line-height: 1.5;
+    }
+
+    .cover-divider {
+      width: 60px;
+      height: 3px;
+      background: rgba(255,255,255,0.4);
+      border-radius: 2px;
+      margin: 4px 0;
+    }
+
+    .cover-url {
+      font-size: 14px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.65);
+      letter-spacing: 0.3px;
+      background: rgba(255,255,255,0.12);
+      padding: 6px 18px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .cover-badge {
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.5);
+      margin-top: 8px;
+    }
+
+    /* ─── SHARED HEADING ─────────────────────────────────── */
+    .slide-heading {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--gray-900);
+      letter-spacing: -0.8px;
+      margin-bottom: 6px;
+      line-height: 1.15;
+    }
+
+    .slide-subheading {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--gray-500);
+      margin-bottom: 18px;
+    }
+
+    .accent-line {
+      width: 44px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      border-radius: 2px;
+      margin-bottom: 18px;
+    }
+
+    /* ─── CARD ───────────────────────────────────────────── */
+    .card {
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+    }
+
+    /* ─── SLIDE 2: PROBLEM ───────────────────────────────── */
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 4px;
+    }
+
+    .problem-card {
+      background: #ffffff;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 20px 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .problem-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--danger), #F97316);
+    }
+
+    .problem-icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    .problem-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 6px;
+    }
+
+    .problem-desc {
+      font-size: 12.5px;
+      font-weight: 400;
+      color: var(--gray-500);
+      line-height: 1.55;
+    }
+
+    /* ─── SLIDE 3: SOLUTION ──────────────────────────────── */
+    .solution-tagline {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--primary);
+      background: #EEF2FF;
+      display: inline-block;
+      padding: 5px 14px;
+      border-radius: 20px;
+      margin-bottom: 18px;
+    }
+
+    .solution-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .solution-card {
+      background: #ffffff;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 22px 16px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .solution-card:nth-child(1)::before { background: linear-gradient(90deg, var(--primary), #6366F1); }
+    .solution-card:nth-child(2)::before { background: linear-gradient(90deg, var(--success), #059669); }
+    .solution-card:nth-child(3)::before { background: linear-gradient(90deg, var(--accent), #9333EA); }
+    .solution-card:nth-child(4)::before { background: linear-gradient(90deg, var(--warning), #D97706); }
+
+    .solution-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+
+    .solution-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .solution-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--gray-900);
+      line-height: 1.3;
+    }
+
+    /* ─── SLIDE 4: FEATURE LIST ──────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .feature-category {
+      background: #ffffff;
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+
+    .category-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 3px 10px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      display: inline-block;
+    }
+
+    .cat-blue   { background: #DBEAFE; color: #1D4ED8; }
+    .cat-purple { background: #EDE9FE; color: #6D28D9; }
+    .cat-green  { background: #D1FAE5; color: #065F46; }
+    .cat-orange { background: #FEF3C7; color: #92400E; }
+
+    .feature-list {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 6px;
+    }
+
+    .feature-list li {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--gray-700);
+      background: var(--gray-100);
+      padding: 2px 8px;
+      border-radius: 6px;
+      line-height: 1.7;
+    }
+
+    /* ─── SLIDE 5: DEEP DIVE ─────────────────────────────── */
+    .deepdive-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .deepdive-card {
+      background: #ffffff;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .deepdive-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+    }
+
+    .deepdive-icon {
+      font-size: 22px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .deepdive-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 4px;
+    }
+
+    .deepdive-desc {
+      font-size: 11.5px;
+      font-weight: 400;
+      color: var(--gray-500);
+      line-height: 1.5;
+    }
+
+    /* ─── SLIDE 6: TECH STACK ────────────────────────────── */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .tech-card {
+      background: #ffffff;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 16px 14px;
+      text-align: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+
+    .tech-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .tech-name {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 2px;
+    }
+
+    .tech-desc {
+      font-size: 10.5px;
+      color: var(--gray-500);
+      font-weight: 400;
+    }
+
+    /* ─── SLIDE 7: LIVE DEMO ─────────────────────────────── */
+    .demo-url-box {
+      background: linear-gradient(135deg, #EEF2FF, #F5F3FF);
+      border: 2px solid #C7D2FE;
+      border-radius: 16px;
+      padding: 20px 28px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .demo-url {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: -0.5px;
+    }
+
+    .demo-meta {
+      font-size: 12.5px;
+      color: var(--gray-500);
+      margin-top: 6px;
+      font-weight: 500;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .step-card {
+      background: #ffffff;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .step-number {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white;
+      font-size: 14px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .step-text {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--gray-700);
+      line-height: 1.5;
+      padding-top: 5px;
+    }
+
+    /* ─── SLIDE 8: THANK YOU ─────────────────────────────── */
+    .slide-thankyou {
+      background: linear-gradient(135deg, #4F46E5 0%, #6D28D9 50%, #7C3AED 100%);
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .thankyou-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .thankyou-icon {
+      font-size: 48px;
+    }
+
+    .thankyou-title {
+      font-size: 44px;
+      font-weight: 900;
+      color: #ffffff;
+      letter-spacing: -1.5px;
+    }
+
+    .thankyou-tagline {
+      font-size: 17px;
+      color: rgba(255,255,255,0.8);
+      font-weight: 400;
+    }
+
+    .thankyou-divider {
+      width: 50px;
+      height: 2px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 2px;
+    }
+
+    .thankyou-cta {
+      font-size: 16px;
+      color: rgba(255,255,255,0.9);
+      font-weight: 600;
+    }
+
+    .thankyou-url {
+      font-size: 14px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.65);
+      background: rgba(255,255,255,0.12);
+      padding: 7px 20px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.2);
+      letter-spacing: 0.3px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SLIDE 1: COVER                                         -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section class="slide slide-cover">
+  <div class="cover-inner">
+    <div class="cover-icon">⚡</div>
+    <h1 class="cover-title">ScrumBoard Pro</h1>
+    <div class="cover-divider"></div>
+    <p class="cover-subtitle">Your Complete Agile Scrum Management Platform</p>
+    <div class="cover-url">scrum-master-app-six.vercel.app</div>
+    <p class="cover-badge">37 pages · Real-time · AI-powered · Free to use</p>
+  </div>
+  <div class="slide-number" style="color: rgba(255,255,255,0.35);">01 / 08</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SLIDE 2: THE PROBLEM                                   -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="brand-logo"><span class="bolt">⚡</span> ScrumBoard Pro</div>
+    <div class="slide-tag">The Problem</div>
+  </div>
+  <div class="slide-body">
+    <h2 class="slide-heading">Why Teams Struggle with Scrum</h2>
+    <div class="accent-line"></div>
+    <div class="problem-grid">
+
+      <div class="problem-card">
+        <span class="problem-icon">🧩</span>
+        <div class="problem-title">Fragmented Tools</div>
+        <p class="problem-desc">Jira, Trello, Notion, and spreadsheets — all separate, never in sync. Teams waste hours context-switching between platforms and hunting for the latest information.</p>
+      </div>
+
+      <div class="problem-card">
+        <span class="problem-icon">📉</span>
+        <div class="problem-title">No Real Visibility</div>
+        <p class="problem-desc">Can't see velocity, burndown, or team health in one place. Managers fly blind, retrospectives lack data, and sprint forecasts are little more than guesses.</p>
+      </div>
+
+      <div class="problem-card">
+        <span class="problem-icon">🐌</span>
+        <div class="problem-title">Manual Everything</div>
+        <p class="problem-desc">Standups, retrospectives, and risk tracking done ad hoc — in Slack, docs, or verbal agreements. Nothing is tracked, nothing is actioned, and nothing improves.</p>
+      </div>
+
+    </div>
+  </div>
+  <div class="slide-number">02 / 08</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SLIDE 3: THE SOLUTION                                  -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="brand-logo"><span class="bolt">⚡</span> ScrumBoard Pro</div>
+    <div class="slide-tag">The Solution</div>
+  </div>
+  <div class="slide-body">
+    <h2 class="slide-heading">One Platform, Everything You Need</h2>
+    <div class="accent-line"></div>
+    <div class="solution-tagline">40+ integrated views. Zero context switching.</div>
+    <div class="solution-grid">
+
+      <div class="solution-card">
+        <span class="solution-icon">🏃</span>
+        <div class="solution-label">Sprint<br>Execution</div>
+      </div>
+
+      <div class="solution-card">
+        <span class="solution-icon">📊</span>
+        <div class="solution-label">Analytics &amp;<br>Insights</div>
+      </div>
+
+      <div class="solution-card">
+        <span class="solution-icon">🗺️</span>
+        <div class="solution-label">Planning &amp;<br>Roadmaps</div>
+      </div>
+
+      <div class="solution-card">
+        <span class="solution-icon">🤝</span>
+        <div class="solution-label">Team<br>Collaboration</div>
+      </div>
+
+    </div>
+  </div>
+  <div class="slide-number">03 / 08</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SLIDE 4: ALL 37 PAGES                                  -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="brand-logo"><span class="bolt">⚡</span> ScrumBoard Pro</div>
+    <div class="slide-tag">Feature List</div>
+  </div>
+  <div class="slide-body" style="justify-content: flex-start; padding-top: 10px;">
+    <h2 class="slide-heading" style="font-size: 24px;">Every Feature Your Team Needs</h2>
+    <div class="accent-line" style="margin-bottom: 14px;"></div>
+    <div class="features-grid">
+
+      <div class="feature-category">
+        <span class="category-label cat-blue">Core</span>
+        <ul class="feature-list">
+          <li>Dashboard</li>
+          <li>Sprint Board</li>
+          <li>Backlog</li>
+          <li>Sprints</li>
+          <li>Daily Standup</li>
+          <li>Team Workload</li>
+        </ul>
+      </div>
+
+      <div class="feature-category">
+        <span class="category-label cat-purple">Planning</span>
+        <ul class="feature-list">
+          <li>Roadmap</li>
+          <li>Work Hierarchy</li>
+          <li>Story Map</li>
+          <li>Ceremony Board</li>
+          <li>Timeline</li>
+          <li>Releases</li>
+          <li>Milestones</li>
+          <li>Dependencies</li>
+          <li>Decision Log</li>
+          <li>Compare Stories</li>
+          <li>Import</li>
+        </ul>
+      </div>
+
+      <div class="feature-category" style="grid-row: 1 / 3;">
+        <span class="category-label cat-green">Insights</span>
+        <ul class="feature-list">
+          <li>Velocity</li>
+          <li>Burndown</li>
+          <li>Reports</li>
+          <li>Risk Register</li>
+          <li>Team</li>
+          <li>Retrospective</li>
+          <li>Health Score</li>
+          <li>Flow Metrics</li>
+          <li>Forecast</li>
+          <li>AI Assistant</li>
+          <li>Time Reports</li>
+          <li>Audit Log</li>
+          <li>Permissions</li>
+          <li>Query Builder</li>
+          <li>Custom Dashboard</li>
+          <li>Feature Flags</li>
+        </ul>
+      </div>
+
+      <div class="feature-category">
+        <span class="category-label cat-orange">Go-to-Market</span>
+        <ul class="feature-list">
+          <li>Landing Page</li>
+          <li>Launch Hub</li>
+          <li>Market Analysis</li>
+          <li>Epic Detail</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+  <div class="slide-number">04 / 08</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SLIDE 5: KEY FEATURES DEEP DIVE                        -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="brand-logo"><span class="bolt">⚡</span> ScrumBoard Pro</div>
+    <div class="slide-tag">Key Features</div>
+  </div>
+  <div class="slide-body">
+    <h2 class="slide-heading">Built for Real Scrum Teams</h2>
+    <div class="accent-line"></div>
+    <div class="deepdive-grid">
+
+      <div class="deepdive-card">
+        <span class="deepdive-icon">⚡</span>
+        <div class="deepdive-title">Real-time Kanban Board</div>
+        <p class="deepdive-desc">Drag &amp; drop, WIP limits, swimlanes by assignee, epic, or priority. Updates sync instantly across all team members.</p>
+      </div>
+
+      <div class="deepdive-card">
+        <span class="deepdive-icon">📈</span>
+        <div class="deepdive-title">Velocity &amp; Burndown</div>
+        <p class="deepdive-desc">Auto-calculated charts with sprint predictions and cumulative flow diagram analysis. Know your team's true capacity.</p>
+      </div>
+
+      <div class="deepdive-card">
+        <span class="deepdive-icon">🗺️</span>
+        <div class="deepdive-title">Visual Roadmap</div>
+        <p class="deepdive-desc">Gantt-style epic, sprint, and milestone timeline. Visualize dependencies and communicate progress to stakeholders instantly.</p>
+      </div>
+
+      <div class="deepdive-card">
+        <span class="deepdive-icon">🤖</span>
+        <div class="deepdive-title">AI Assistant</div>
+        <p class="deepdive-desc">Smart sprint planning suggestions and automated risk detection. Surface blockers before they derail your sprint.</p>
+      </div>
+
+      <div class="deepdive-card">
+        <span class="deepdive-icon">📋</span>
+        <div class="deepdive-title">Story Management</div>
+        <p class="deepdive-desc">Subtasks, attachments, acceptance criteria, and full dev workflow. Every story has complete context — no more Slack archaeology.</p>
+      </div>
+
+      <div class="deepdive-card">
+        <span class="deepdive-icon">👥</span>
+        <div class="deepdive-title">Team Workload</div>
+        <p class="deepdive-desc">Per-member capacity bars and overload alerts. Balance the work before you plan the sprint, not after the damage is done.</p>
+      </div>
+
+    </div>
+  </div>
+  <div class="slide-number">05 / 08</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SLIDE 6: TECH STACK                                    -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="brand-logo"><span class="bolt">⚡</span> ScrumBoard Pro</div>
+    <div class="slide-tag">Tech Stack</div>
+  </div>
+  <div class="slide-body">
+    <h2 class="slide-heading">Modern, Fast, Reliable</h2>
+    <div class="accent-line"></div>
+    <div class="tech-grid">
+
+      <div class="tech-card">
+        <span class="tech-icon">⚛️</span>
+        <div class="tech-name">React 18 + TypeScript</div>
+        <div class="tech-desc">Type-safe UI with concurrent features</div>
+      </div>
+
+      <div class="tech-card">
+        <span class="tech-icon">⚡</span>
+        <div class="tech-name">Vite</div>
+        <div class="tech-desc">Instant HMR, lightning-fast builds</div>
+      </div>
+
+      <div class="tech-card">
+        <span class="tech-icon">🎨</span>
+        <div class="tech-name">Tailwind CSS v3</div>
+        <div class="tech-desc">Utility-first, fully customisable</div>
+      </div>
+
+      <div class="tech-card">
+        <span class="tech-icon">📦</span>
+        <div class="tech-name">Zustand</div>
+        <div class="tech-desc">Lightweight global state management</div>
+      </div>
+
+      <div class="tech-card">
+        <span class="tech-icon">🗄️</span>
+        <div class="tech-name">Supabase</div>
+        <div class="tech-desc">Auth + real-time PostgreSQL DB</div>
+      </div>
+
+      <div class="tech-card">
+        <span class="tech-icon">🚀</span>
+        <div class="tech-name">Vercel</div>
+        <div class="tech-desc">Global CDN, zero-config deployment</div>
+      </div>
+
+      <div class="tech-card">
+        <span class="tech-icon">📊</span>
+        <div class="tech-name">Recharts</div>
+        <div class="tech-desc">Composable data visualisation</div>
+      </div>
+
+      <div class="tech-card">
+        <span class="tech-icon">🔗</span>
+        <div class="tech-name">React Router v6</div>
+        <div class="tech-desc">Client-side routing, nested layouts</div>
+      </div>
+
+    </div>
+  </div>
+  <div class="slide-number">06 / 08</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SLIDE 7: LIVE DEMO                                     -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="slide-header">
+    <div class="brand-logo"><span class="bolt">⚡</span> ScrumBoard Pro</div>
+    <div class="slide-tag">Live Demo</div>
+  </div>
+  <div class="slide-body">
+    <h2 class="slide-heading">Try It Now — Live &amp; Free</h2>
+    <div class="accent-line"></div>
+
+    <div class="demo-url-box">
+      <div class="demo-url">scrum-master-app-six.vercel.app</div>
+      <div class="demo-meta">No login required &nbsp;·&nbsp; Works on mobile &nbsp;·&nbsp; Share with your team</div>
+    </div>
+
+    <div class="steps-grid">
+
+      <div class="step-card">
+        <div class="step-number">1</div>
+        <div class="step-text">Open <strong>scrum-master-app-six.vercel.app</strong> in any browser — no account needed.</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-number">2</div>
+        <div class="step-text">Explore the <strong>Dashboard</strong> and <strong>Sprint Board</strong> with pre-loaded sample data.</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-number">3</div>
+        <div class="step-text">Create your <strong>first sprint</strong>, add stories to the backlog, and drag them to Done.</div>
+      </div>
+
+    </div>
+  </div>
+  <div class="slide-number">07 / 08</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SLIDE 8: THANK YOU                                     -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section class="slide slide-thankyou">
+  <div class="thankyou-inner">
+    <div class="thankyou-icon">⚡</div>
+    <h2 class="thankyou-title">ScrumBoard Pro</h2>
+    <p class="thankyou-tagline">Built with ❤️ for Agile teams everywhere</p>
+    <div class="thankyou-divider"></div>
+    <p class="thankyou-cta">Questions? Let's connect.</p>
+    <div class="thankyou-url">scrum-master-app-six.vercel.app</div>
+  </div>
+  <div class="slide-number" style="color: rgba(255,255,255,0.35);">08 / 08</div>
+</section>
+
+</body>
+</html>
