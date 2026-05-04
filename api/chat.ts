@@ -170,7 +170,7 @@ ${(context.risks ?? []).filter((r: Record<string, unknown>) => r.status === 'ope
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-6',
         max_tokens: 2048,
         system: systemWithContext,
         messages: messages.map((m: { role: string; content: string }) => ({
